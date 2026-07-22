@@ -8,3 +8,7 @@ venv/
 .env
 *.log
 .DS_Store
+
+# build scaffolding, not product
+BUILD_PLAN.md
+PR_BODY.md
