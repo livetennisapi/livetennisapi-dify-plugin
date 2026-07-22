@@ -1,0 +1,93 @@
+identity:
+  name: get_match_odds
+  author: livetennisapi
+  label:
+    en_US: "Match market prices"
+description:
+  human:
+    en_US: "Match-winner market prices for a match - implied probability per player, with bid, ask and mid. Read-only price reporting. Requires the PRO plan."
+  llm: "Match-winner market prices for a match - implied probability per player, with bid, ask and mid. Requires the PRO plan."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a tier wall, a missing or rejected key, or an empty result - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, invalid_parameter, connection_error, request_failed.
+    market:
+      type: object
+      description: The match-winner market.
+      properties:
+        question:
+          type: string
+          nullable: true
+          description: The market being priced.
+        status:
+          type: string
+          nullable: true
+          description: Market status, e.g. open or resolved.
+        volume:
+          type: number
+          nullable: true
+          description: 24h traded volume.
+        liquidity:
+          type: number
+          nullable: true
+          description: Resting liquidity.
+        prices:
+          type: array
+          description: Recent prices, newest first.
+          items:
+        type: object
+        properties:
+          side:
+            type: number
+            nullable: true
+            description: Which player this price is for, 1 or 2.
+          mid:
+            type: number
+            nullable: true
+            description: Mid price, 0-1, readable as implied probability.
+          bid:
+            type: number
+            nullable: true
+            description: Best bid.
+          ask:
+            type: number
+            nullable: true
+            description: Best ask.
+          timestamp:
+            type: string
+            nullable: true
+            description: When the price was observed.
+parameters:
+  - name: match_id
+    type: number
+    required: true
+    label:
+      en_US: Match ID
+    human_description:
+      en_US: The match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
+    llm_description: Match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
+    form: llm
+  - name: limit
+    type: number
+    required: false
+    default: 10
+    min: 1
+    max: 200
+    label:
+      en_US: Limit
+    human_description:
+      en_US: Maximum price points to return (1-200).
+    llm_description: Maximum price points to return (1-200). Defaults to 10.
+    form: llm
+extra:
+  python:
+    source: tools/get_match_odds.py
