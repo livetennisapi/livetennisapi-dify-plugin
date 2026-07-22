@@ -177,4 +177,20 @@ two-line `requirements.txt` a Dify reviewer will read).
 
 ## Status
 
-All units complete — see `PR_BODY.md` and the repo `README.md`.
+All ten units complete, each committed green. See `PR_BODY.md` and the repo `README.md`.
+
+### BLOCKER before filing — not fixable from here
+
+`[FACT]` **`https://github.com/livetennisapi/livetennisapi-dify-plugin` returns 404.**
+Checked 2026-07-22 alongside every other URL the plugin ships (all seven others return 200:
+`/subscribe/free`, `/#pricing`, `/docs`, `/privacy`, `/terms`, the site root, and the API
+health endpoint).
+
+Why it matters: `plugin-submission-requirements.md` requires the README to carry "a link to
+the source repository", and `plugin-review-guidelines.md` has the reviewer check exactly
+that. The URL appears in `plugin/README.md` (source, issues, support), `plugin/PRIVACY.md`
+(contact) and the PR body's **Source repository** field. A reviewer who clicks it gets a 404.
+
+Not fixed here because publishing it means creating and pushing a remote, which this task
+forbids. **Publish that repository before opening the PR** — the name is already the one the
+sibling projects reference, so no file needs editing once it exists.
