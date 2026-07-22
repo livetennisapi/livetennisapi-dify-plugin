@@ -130,10 +130,19 @@ def format_score(score: Any) -> str:
 
 
 def _player_names(match: Any) -> tuple[str, str]:
+    """The two players' names, or ``?`` each.
+
+    ``Match.players`` is a **dict** keyed ``p1``/``p2`` holding ``Player``
+    objects -- a dict of objects, not an object of objects. Reaching for
+    ``players.p1`` yields nothing and quietly renders every match as "? vs ?".
+    """
     players = getattr(match, "players", None)
-    p1 = getattr(players, "p1", None) if players else None
-    p2 = getattr(players, "p2", None) if players else None
-    return (getattr(p1, "name", None) or "?", getattr(p2, "name", None) or "?")
+    if not isinstance(players, Mapping):
+        return ("?", "?")
+    return (
+        getattr(players.get("p1"), "name", None) or "?",
+        getattr(players.get("p2"), "name", None) or "?",
+    )
 
 
 def summarise(match: Any) -> str:
