@@ -1,0 +1,136 @@
+identity:
+  name: get_match
+  author: livetennisapi
+  label:
+    en_US: "Match detail"
+description:
+  human:
+    en_US: "Full detail for one match by id: players, score, surface, round and status. Includes market prices on PRO and model analysis on ULTRA."
+  llm: "Full detail for one match by id: players, score, surface, round and status. Includes market prices on PRO and model analysis on ULTRA."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a tier wall, a missing or rejected key, or an empty result - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, invalid_parameter, connection_error, request_failed.
+    match:
+      type: object
+      description: The match.
+      properties:
+        id:
+          type: number
+          nullable: true
+          description: Match id. Pass to get_match, get_match_score, get_match_events or get_match_odds.
+        tournament:
+          type: string
+          nullable: true
+          description: Event name, e.g. Wimbledon.
+        round:
+          type: string
+          nullable: true
+          description: Round within the event, e.g. QF.
+        player1:
+          type: string
+          nullable: true
+          description: Name of player 1.
+        player2:
+          type: string
+          nullable: true
+          description: Name of player 2.
+        score:
+          type: string
+          nullable: true
+          description: Formatted score line, e.g. 6-4 3-6 2-1.
+        status:
+          type: string
+          nullable: true
+          description: One of live, upcoming or completed.
+        surface:
+          type: string
+          nullable: true
+          description: Court surface, e.g. hard, clay, grass.
+        indoor:
+          type: boolean
+          nullable: true
+          description: True when played indoors.
+        serving:
+          type: number
+          nullable: true
+          description: 1 or 2 while a point is in play, otherwise null.
+        winner:
+          type: number
+          nullable: true
+          description: 1 or 2 once decided, otherwise null.
+        win_probability_p1:
+          type: number
+          nullable: true
+          description: Model probability that player 1 wins, 0-1. Requires the ULTRA plan; null otherwise.
+    market:
+      type: object
+      nullable: true
+      description: Match-winner market. Requires the PRO plan; absent otherwise.
+      properties:
+        question:
+          type: string
+          nullable: true
+          description: The market being priced.
+        prices:
+          type: array
+          description: Current prices per player.
+          items:
+        type: object
+        properties:
+          side:
+            type: number
+            nullable: true
+            description: Which player this price is for, 1 or 2.
+          mid:
+            type: number
+            nullable: true
+            description: Mid price, 0-1, readable as implied probability.
+          bid:
+            type: number
+            nullable: true
+            description: Best bid.
+          ask:
+            type: number
+            nullable: true
+            description: Best ask.
+          timestamp:
+            type: string
+            nullable: true
+            description: When the price was observed.
+    analysis:
+      type: object
+      nullable: true
+      description: Model analysis. Requires the ULTRA plan; absent otherwise.
+      properties:
+        win_probability_p1:
+          type: number
+          nullable: true
+          description: Model probability player 1 wins, 0-1.
+        key_factors:
+          type: array
+          description: Drivers behind the model view.
+          items:
+            type: string
+parameters:
+  - name: match_id
+    type: number
+    required: true
+    label:
+      en_US: Match ID
+    human_description:
+      en_US: The match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
+    llm_description: Match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
+    form: llm
+extra:
+  python:
+    source: tools/get_match.py

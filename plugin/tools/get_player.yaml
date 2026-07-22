@@ -1,0 +1,75 @@
+identity:
+  name: get_player
+  author: livetennisapi
+  label:
+    en_US: "Player profile"
+description:
+  human:
+    en_US: "One player's profile: ranking, country, handedness, date of birth and cached stats."
+  llm: "One player's profile: ranking, country, handedness, date of birth and cached stats."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a tier wall, a missing or rejected key, or an empty result - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, invalid_parameter, connection_error, request_failed.
+    player:
+      type: object
+      description: The player.
+      properties:
+        id:
+          type: number
+          nullable: true
+          description: Player id. Pass to get_player.
+        name:
+          type: string
+          nullable: true
+          description: Player name.
+        country:
+          type: string
+          nullable: true
+          description: Country code.
+        ranking:
+          type: number
+          nullable: true
+          description: Current singles ranking.
+        ranking_points:
+          type: number
+          nullable: true
+          description: Ranking points.
+        ranking_movement:
+          type: string
+          nullable: true
+          description: Recent movement in the rankings.
+        hand:
+          type: string
+          nullable: true
+          description: R or L.
+        birthday:
+          type: string
+          nullable: true
+          description: Date of birth, ISO date.
+        tour:
+          type: string
+          nullable: true
+          description: ATP, WTA, Challenger or ITF.
+parameters:
+  - name: player_id
+    type: number
+    required: true
+    label:
+      en_US: Player ID
+    human_description:
+      en_US: The player id, as returned by search_players.
+    llm_description: Player id, as returned by search_players.
+    form: llm
+extra:
+  python:
+    source: tools/get_player.py

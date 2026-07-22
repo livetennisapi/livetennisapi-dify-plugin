@@ -1,0 +1,64 @@
+identity:
+  name: get_fixtures
+  author: livetennisapi
+  label:
+    en_US: "Fixture schedule"
+description:
+  human:
+    en_US: "Upcoming scheduled tennis fixtures, earliest first - the forward schedule."
+  llm: "Upcoming scheduled tennis fixtures, earliest first - the forward schedule."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a tier wall, a missing or rejected key, or an empty result - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, invalid_parameter, connection_error, request_failed.
+    fixtures:
+      type: array
+      description: Scheduled fixtures, earliest first.
+      items:
+        type: object
+        properties:
+          event_date:
+            type: string
+            nullable: true
+            description: Scheduled start, ISO timestamp.
+          tournament:
+            type: string
+            nullable: true
+            description: Event name.
+          round:
+            type: string
+            nullable: true
+            description: Round within the event.
+          player1:
+            type: string
+            nullable: true
+            description: Name of player 1.
+          player2:
+            type: string
+            nullable: true
+            description: Name of player 2.
+parameters:
+  - name: limit
+    type: number
+    required: false
+    default: 20
+    min: 1
+    max: 200
+    label:
+      en_US: Limit
+    human_description:
+      en_US: Maximum fixtures to return (1-200).
+    llm_description: Maximum fixtures to return (1-200). Defaults to 20.
+    form: llm
+extra:
+  python:
+    source: tools/get_fixtures.py

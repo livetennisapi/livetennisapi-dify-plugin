@@ -1,0 +1,61 @@
+identity:
+  name: get_match_score
+  author: livetennisapi
+  label:
+    en_US: "Match score"
+description:
+  human:
+    en_US: "Current score for one match - the fastest, lowest-latency read. Use when you only need the score and already know the match id."
+  llm: "Current score for one match - the fastest, lowest-latency read. Use this when you only need the score and already know the match id."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a tier wall, a missing or rejected key, or an empty result - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, invalid_parameter, connection_error, request_failed.
+    score:
+      type: object
+      description: The current score.
+      properties:
+        formatted:
+          type: string
+          nullable: true
+          description: Formatted score line, e.g. 6-4 3-6 2-1.
+        sets:
+          type: array
+          nullable: true
+          description: Sets won per player.
+          items:
+            type: number
+        serving:
+          type: number
+          nullable: true
+          description: Which player is serving, 1 or 2.
+        is_tiebreak:
+          type: boolean
+          nullable: true
+          description: True during a tiebreak.
+        win_probability_p1:
+          type: number
+          nullable: true
+          description: Model probability player 1 wins, 0-1. ULTRA only.
+parameters:
+  - name: match_id
+    type: number
+    required: true
+    label:
+      en_US: Match ID
+    human_description:
+      en_US: The match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
+    llm_description: Match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
+    form: llm
+extra:
+  python:
+    source: tools/get_match_score.py

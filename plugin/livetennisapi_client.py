@@ -85,6 +85,11 @@ def _n(value: Any) -> Any:
     return None if value is None else value
 
 
+def dash(value: Any) -> Any:
+    """``-`` for an absent value, so prose never prints a bare ``None``."""
+    return "-" if value is None else value
+
+
 def _iso(value: Any) -> str | None:
     """Datetimes as ISO strings; anything else as-is. JSON has no datetime."""
     if value is None:
@@ -212,6 +217,39 @@ def price_out(price: Any) -> dict[str, Any]:
     }
 
 
+# -- parameters ---------------------------------------------------------------
+#
+# Dify hands tool parameters through untyped: a "number" arrives as int, float
+# or str depending on whether a user typed it, a workflow computed it, or a
+# model filled it in. Coercing in one place stops twelve tools each inventing
+# their own half-correct version.
+
+
+def int_param(value: Any, default: int, *, minimum: int = 1, maximum: int = 200) -> int:
+    """A bounded int, falling back to ``default`` on anything unusable.
+
+    Clamped rather than rejected: a model asking for 500 matches means "as many
+    as you can", and the API's own ceiling is 200.
+    """
+    if value is None or value == "":
+        return default
+    try:
+        parsed = int(float(value))
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(maximum, parsed))
+
+
+def required_id(value: Any) -> int | None:
+    """An id parameter, or ``None`` when it is missing or not a number."""
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
 # -- results ------------------------------------------------------------------
 
 
@@ -228,6 +266,15 @@ def fail(message: str, reason: str, **extra: Any) -> dict[str, Any]:
     state with a remedy the message spells out.
     """
     return {"ok": False, "message": message, "reason": reason, **extra}
+
+
+def missing_id(name: str) -> dict[str, Any]:
+    """The result for an absent or unparseable id parameter."""
+    return fail(
+        f"The '{name}' parameter is required and must be a number. Ids come from "
+        "get_live_matches, get_upcoming_matches, get_recent_results or search_players.",
+        "invalid_parameter",
+    )
 
 
 NO_KEY_MESSAGE = (
