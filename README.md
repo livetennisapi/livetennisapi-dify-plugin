@@ -27,9 +27,11 @@ builds and submits it.
 ├── test/
 │   ├── stub_api.py              local stand-in for the API
 │   └── test_tools.py            drives all 6 tools offline
-└── dist/
-    ├── livetennisapi-0.0.1.difypkg
-    └── livetennisapi-0.0.2.difypkg   as merged in langgenius/dify-plugins#2773
+├── dist/
+│   ├── livetennisapi-0.0.1.difypkg
+│   ├── livetennisapi-0.0.2.difypkg   as merged in langgenius/dify-plugins#2773
+│   └── livetennisapi-0.0.3.difypkg
+└── LICENSE                      MIT -- root only; the package ships no licence file
 ```
 
 ## Develop

@@ -7,7 +7,7 @@ WTA, Challenger and ITF.
 in the Live Tennis API or anywhere else.
 
 - **Source repository:** https://github.com/livetennisapi/livetennisapi-dify-plugin
-- **API documentation:** https://livetennisapi.com/docs
+- **API documentation:** https://docs.livetennisapi.com
 - **Get a free API key (no card):** https://livetennisapi.com/subscribe/free
 - **Contact:** support@livetennisapi.com
 
@@ -102,6 +102,19 @@ when the API supplies it, a `retry_after` value in seconds.
 right now", "who plays tomorrow on the WTA tour", "how did Alcaraz do".
 
 **In a Workflow.** Read the JSON output and branch on `ok`, then on `reason`.
+
+## Changes in 0.0.3
+
+- **Fixed:** the API documentation link now points to
+  https://docs.livetennisapi.com. The address printed in earlier versions,
+  `livetennisapi.com/docs`, redirects to the homepage rather than the
+  documentation.
+- The source repository now carries the MIT licence text as a `LICENSE` file;
+  previously the licence was stated but the file was missing.
+
+No tool, parameter or behaviour changed. Workflows built on 0.0.2 work
+unmodified. (0.0.2 was merged upstream but never reached the Marketplace, so
+coming from the 0.0.1 Marketplace build, the 0.0.2 changes below apply too.)
 
 ## Changes in 0.0.2
 
