@@ -21,16 +21,15 @@ builds and submits it.
 │   ├── _assets/icon.png         brand mark; CI resolves manifest.icon here
 │   ├── livetennisapi_client.py  shared client, formatters, tier-aware guard
 │   ├── provider/
-│   │   ├── livetennisapi.yaml   credential schema + the 12 tool manifests
+│   │   ├── livetennisapi.yaml   credential schema + the 6 tool manifests
 │   │   └── livetennisapi.py     credential validation
-│   └── tools/                   12 x (<tool>.yaml + <tool>.py)
+│   └── tools/                   6 x (<tool>.yaml + <tool>.py)
 ├── test/
 │   ├── stub_api.py              local stand-in for the API
-│   └── test_tools.py            drives all 12 tools offline
-├── dist/
-│   └── livetennisapi-0.0.1.difypkg
-├── PR_BODY.md                   the submission PR body, template-filled
-└── BUILD_PLAN.md                how this was built, and why
+│   └── test_tools.py            drives all 6 tools offline
+└── dist/
+    ├── livetennisapi-0.0.1.difypkg
+    └── livetennisapi-0.0.2.difypkg   as merged in langgenius/dify-plugins#2773
 ```
 
 ## Develop
@@ -52,10 +51,12 @@ so the suite never touches production.
 python test/test_tools.py
 ```
 
-It drives all twelve tools through: no key, the success path, a 403 tier wall,
-401, 404, 429, and unusable parameters. The tier-wall pass is the point — it
-asserts that every gated tool returns an explanation naming the required plan
-and that **nothing raises**.
+It drives all six tools through: no key, the success path, a 403 tier wall,
+401, 404, 429, and unusable parameters. Two invariants are the point:
+**nothing raises** — every expected failure returns a plain-English result a
+workflow can branch on — and **the API key travels in the `x-api-key` header**,
+asserted on the wire so a client-library default can never silently move it
+back to `Authorization: Bearer`.
 
 ## Build
 
@@ -66,14 +67,19 @@ curl -sL -o dify \
   https://github.com/langgenius/dify-plugin-daemon/releases/download/0.6.5/dify-plugin-linux-amd64
 chmod +x dify
 
-./dify plugin package ./plugin -o dist/livetennisapi-0.0.1.difypkg
+./dify plugin package ./plugin -o dist/livetennisapi-<version>.difypkg
 ```
 
 Then confirm the package holds runtime files only:
 
 ```bash
-unzip -l dist/livetennisapi-0.0.1.difypkg
+unzip -l dist/livetennisapi-<version>.difypkg
 ```
+
+There is no `LICENSE` inside the package, deliberately: the upstream submission
+requirements limit a `.difypkg` to files the plugin needs at runtime, and the
+marketplace's own packages carry none. The MIT licence text lives at this
+repo's root.
 
 ## Submit
 
@@ -83,31 +89,42 @@ The plugin source is not committed there. Verified against the repo: 1059 of its
 single package file.
 
 1. Fork `langgenius/dify-plugins`.
-2. Copy the package to `livetennisapi/livetennisapi/livetennisapi-0.0.1.difypkg`
+2. Copy the package to `livetennisapi/livetennisapi/livetennisapi-<version>.difypkg`
    — a **top-level** `<author>/<plugin_name>/` directory, not under `plugins/`.
-3. Open the PR using `PR_BODY.md` verbatim as the body.
+3. Open the PR filling the upstream PR template completely. Use the merged
+   [#2773](https://github.com/langgenius/dify-plugins/pull/2773) as the
+   precedent for structure and level of disclosure.
 
 Two things the CI will fail you on if you improvise:
 
 - **Tick exactly one risk box.** `pr-risk-label.yaml` matches
   `/^- \[[xX]\] Low risk\s*$/m` and counts all three patterns — ticking two
-  labels the PR `risk: missing` just as surely as ticking none. `PR_BODY.md` is
-  already correct; check it with:
-
-  ```bash
-  node -e 'const b=require("fs").readFileSync("PR_BODY.md","utf8");
-    console.log(/^- \[[xX]\] Low risk\s*$/m.test(b))'
-  ```
+  labels the PR `risk: missing` just as surely as ticking none.
 
 - **Bump the version** for any resubmission. `pre-check-plugin.yaml` fails if
   `<author>/<name>/<version>` already exists on the Marketplace:
 
   ```bash
   curl -o /dev/null -w '%{http_code}\n' \
-    https://marketplace.dify.ai/api/v1/plugins/livetennisapi/livetennisapi/0.0.1
+    https://marketplace.dify.ai/api/v1/plugins/livetennisapi/livetennisapi/<version>
   ```
 
   `404` means the version is free to use.
+
+**Merged is not published.** After a merge, the upstream `upload-merged-plugin`
+workflow pushes the package to the Marketplace — and it can fail independently
+of the PR. That is exactly what happened to 0.0.2: #2773 merged on 2026-07-28,
+but the upload step died on a Marketplace-side `database error`, so the
+Marketplace kept serving 0.0.1. After a merge, always confirm:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  https://marketplace.dify.ai/api/v1/plugins/livetennisapi/livetennisapi/<version>
+```
+
+`200` means it is actually live. If it is not, check the workflow run for the
+merge commit in `langgenius/dify-plugins` and ask the maintainers to re-run it —
+or ship the next version, whose merge triggers a fresh upload.
 
 ## Licence
 

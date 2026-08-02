@@ -1,6 +1,6 @@
 # Privacy Policy — Live Tennis API plugin
 
-Last updated: 2026-07-22
+Last updated: 2026-07-26
 
 ## Summary
 
@@ -24,8 +24,8 @@ Each request carries:
 
 | Sent | Why |
 | --- | --- |
-| Your Live Tennis API key, as an `Authorization: Bearer` header | Authenticates the request and identifies your plan |
-| The tool's arguments — a match id, a player id, a player-name search term, a result limit | These are the query itself |
+| Your Live Tennis API key, in the `x-api-key` request header | Authenticates the request and identifies your plan |
+| The tool's arguments — a match id, a player id, a player-name search term, a match status, a tour, a result limit | These are the query itself |
 | A `User-Agent` identifying the client library and version | Standard HTTP practice |
 
 Nothing else leaves the plugin. No Dify user identity, no conversation content,

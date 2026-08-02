@@ -53,8 +53,8 @@ parameters:
     label:
       en_US: Match ID
     human_description:
-      en_US: The match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
-    llm_description: Match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
+      en_US: The match id, as returned by get_matches.
+    llm_description: Match id, as returned by get_matches (any status).
     form: llm
 extra:
   python:

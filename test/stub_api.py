@@ -35,6 +35,10 @@ MATCH: dict[str, Any] = {
         "games": [[6, 3], [4, 2]],
         "points": ["40", "30"],
     },
+    # Embedded, tier-gated blocks. Since 0.0.2 the API embeds these in a match
+    # detail rather than serving them from their own endpoints.
+    "market": None,  # filled in below -- MARKET is defined later in the file
+    "analysis": None,
 }
 
 PLAYER: dict[str, Any] = {
@@ -82,6 +86,9 @@ ANALYSIS: dict[str, Any] = {
 
 EVENT: dict[str, Any] = {"timestamp": "2026-07-22T00:00:00Z", "type": "break", "player": 1}
 
+MATCH["market"] = MARKET
+MATCH["analysis"] = ANALYSIS
+
 
 def page(row: dict[str, Any]) -> dict[str, Any]:
     return {"data": [row], "meta": {"limit": 1, "offset": 0, "count": 1}}
@@ -98,6 +105,9 @@ class StubAPI:
     def __init__(self) -> None:
         self.rules: dict[str, int] = {}
         self.asked: list[str] = []
+        #: One entry per request: the path plus the two auth-relevant headers,
+        #: so a test can assert what actually went over the wire.
+        self.seen_headers: list[dict[str, str | None]] = []
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -141,6 +151,13 @@ class StubAPI:
 
             def do_GET(self) -> None:  # noqa: N802 - stdlib naming
                 stub.asked.append(self.path)
+                stub.seen_headers.append(
+                    {
+                        "path": self.path,
+                        "x-api-key": self.headers.get("x-api-key"),
+                        "authorization": self.headers.get("authorization"),
+                    }
+                )
                 path = self.path.split("?")[0]
 
                 forced = stub._forced_status(path)

@@ -1,0 +1,142 @@
+identity:
+  name: get_matches
+  author: livetennisapi
+  label:
+    en_US: "Tennis matches"
+description:
+  human:
+    en_US: "List tennis matches - live now, scheduled to start, or already finished. Optionally narrowed to one tour. Covers ATP, WTA, Challenger and ITF."
+  llm: "List tennis matches by lifecycle status. status=live for matches in progress right now with live scores (the default, and the answer to \"what tennis is on\"), status=upcoming for matches about to start, status=completed for finished matches with the winner. Set tour to narrow to ATP, WTA, Challenger or ITF. Returns match ids for use with get_match and get_match_score."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a missing or rejected key, a rate limit, or an unusable parameter - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, invalid_parameter, connection_error, request_failed.
+    status:
+      type: string
+      nullable: true
+      description: The lifecycle status actually queried - live, upcoming or completed. Echoed back because an unrecognised value falls back to live.
+    tour:
+      type: string
+      nullable: true
+      description: The tour actually filtered on - atp, wta, challenger or itf - or null for all tours.
+    matches:
+      type: array
+      description: The matches, most relevant first.
+      items:
+        type: object
+        properties:
+          id:
+            type: number
+            nullable: true
+            description: Match id. Pass to get_match or get_match_score.
+          tournament:
+            type: string
+            nullable: true
+            description: Event name, e.g. Wimbledon.
+          round:
+            type: string
+            nullable: true
+            description: Round within the event, e.g. QF.
+          player1:
+            type: string
+            nullable: true
+            description: Name of player 1.
+          player2:
+            type: string
+            nullable: true
+            description: Name of player 2.
+          score:
+            type: string
+            nullable: true
+            description: Formatted score line, e.g. 6-4 3-6 2-1.
+          status:
+            type: string
+            nullable: true
+            description: One of live, upcoming or completed.
+          surface:
+            type: string
+            nullable: true
+            description: Court surface, e.g. hard, clay, grass.
+          indoor:
+            type: boolean
+            nullable: true
+            description: True when played indoors.
+          serving:
+            type: number
+            nullable: true
+            description: 1 or 2 while a point is in play, otherwise null.
+          winner:
+            type: number
+            nullable: true
+            description: 1 or 2 once decided, otherwise null.
+          win_probability_p1:
+            type: number
+            nullable: true
+            description: Model probability that player 1 wins, 0-1. Present only on plans that include model analysis; null otherwise.
+parameters:
+  - name: status
+    type: select
+    required: false
+    default: live
+    options:
+      - value: live
+        label:
+          en_US: Live now
+      - value: upcoming
+        label:
+          en_US: Upcoming
+      - value: completed
+        label:
+          en_US: Completed
+    label:
+      en_US: Status
+    human_description:
+      en_US: Which matches to list - live now, scheduled to start, or already finished. Defaults to live.
+    llm_description: Which matches to list. "live" for matches in progress right now, "upcoming" for matches yet to start, "completed" for finished matches with a winner. Defaults to "live". Any other value is treated as "live".
+    form: llm
+  - name: tour
+    type: select
+    required: false
+    options:
+      - value: atp
+        label:
+          en_US: ATP (men)
+      - value: wta
+        label:
+          en_US: WTA (women)
+      - value: challenger
+        label:
+          en_US: ATP Challenger
+      - value: itf
+        label:
+          en_US: ITF
+    label:
+      en_US: Tour
+    human_description:
+      en_US: Narrow the list to one tour. Leave unset for all tours.
+    llm_description: Narrow the list to one tour - "atp", "wta", "challenger" or "itf". Leave unset to include every tour. Any other value is ignored and all tours are returned.
+    form: llm
+  - name: limit
+    type: number
+    required: false
+    default: 20
+    min: 1
+    max: 200
+    label:
+      en_US: Limit
+    human_description:
+      en_US: Maximum matches to return (1-200).
+    llm_description: Maximum matches to return (1-200). Defaults to 20. Values outside the range are clamped, not rejected.
+    form: llm
+extra:
+  python:
+    source: tools/get_matches.py

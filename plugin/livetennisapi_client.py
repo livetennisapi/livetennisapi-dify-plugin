@@ -1,6 +1,6 @@
 """Shared plumbing for every Live Tennis API tool.
 
-Three things live here so that twelve tool files cannot drift apart:
+Three things live here so that six tool files cannot drift apart:
 
 1. **The client factory.** The API base URL is a module constant, not a
    credential. A user-settable base URL would make the plugin's network
@@ -42,16 +42,21 @@ BASE_URL = "https://api.livetennisapi.com/api/public/v1"
 SIGNUP_URL = "https://livetennisapi.com/subscribe/free"
 PRICING_URL = "https://livetennisapi.com/#pricing"
 
-#: Reproduced from the MCP server so both integrations explain a tier wall the
-#: same way (../livetennisapi-mcp/src/server.ts:215-218).
+#: Every endpoint this plugin calls is on the FREE tier, so a tier wall is only
+#: reachable through the optional blocks embedded in a match detail response.
 TIER_TABLE = (
-    "Tiers: FREE = live & upcoming matches, scores, players, fixtures; "
-    "BASIC = + historical results; "
-    "PRO = + match events and market prices; "
-    "ULTRA = + model analysis, win probability and the live feed."
+    "Tiers: FREE = matches (live, upcoming and completed), scores, players, fixtures - "
+    "everything this plugin's tools call; "
+    "PRO and ULTRA additionally embed market prices and model analysis in a match detail."
 )
 
 REQUEST_TIMEOUT = 30.0
+
+#: The lifecycle values ``GET /matches`` accepts for ``status``.
+MATCH_STATUSES = ("live", "upcoming", "completed")
+
+#: The values ``GET /matches`` accepts for ``tour``. Sent lower-case.
+TOURS = ("atp", "wta", "challenger", "itf")
 
 
 # -- client -------------------------------------------------------------------
@@ -67,6 +72,12 @@ def api_key_of(credentials: Mapping[str, Any] | None) -> str:
 def make_client(credentials: Mapping[str, Any] | None, *, base_url: str | None = None) -> LiveTennisAPI:
     """Build a client bound to one key.
 
+    ``auth_header`` is passed explicitly. The Live Tennis API authenticates on
+    the ``x-api-key`` request header; the SDK's constructor default is
+    ``"bearer"``, so leaving it unset sends ``Authorization: Bearer ...``
+    instead. Naming it here means a change to the SDK's default cannot silently
+    change what this plugin sends.
+
     ``base_url`` exists for the offline test stub only. It has no credential
     behind it, so a plugin user cannot redirect traffic anywhere.
     """
@@ -74,7 +85,47 @@ def make_client(credentials: Mapping[str, Any] | None, *, base_url: str | None =
         api_key=api_key_of(credentials),
         base_url=base_url or BASE_URL,
         timeout=REQUEST_TIMEOUT,
+        auth_header="x-api-key",
     )
+
+
+def list_matches(client: LiveTennisAPI, *, status: str, tour: str | None, limit: int) -> Any:
+    """``GET /matches`` with the documented ``status``, ``tour`` and ``limit``.
+
+    ``tour`` is a documented query parameter of the endpoint, but the pinned SDK
+    (``livetennisapi`` 1.0.2) predates it and ``list_matches`` has no such
+    keyword. The public call is attempted first, so the moment the SDK gains the
+    keyword this function starts using it and the fallback below goes cold. Only
+    when the SDK rejects the keyword do we build the same request through its
+    request layer, which is what its own ``list_matches`` does.
+
+    Dropping ``tour`` silently instead would be worse than either: the user asks
+    for ATP and quietly gets everything.
+    """
+    if not tour:
+        return client.list_matches(status=status, limit=limit)
+
+    try:
+        return client.list_matches(status=status, tour=tour, limit=limit)
+    except TypeError:
+        pass
+
+    from livetennisapi.models import Match
+
+    payload = client._request(  # noqa: SLF001 - documented SDK-version shim, see above
+        "/matches",
+        {"status": status, "tour": tour, "limit": limit},
+    )
+    return _Page([Match.from_dict(row) for row in (payload or {}).get("data") or []])
+
+
+class _Page:
+    """The one attribute the tools read off an SDK ``Page``: ``.data``."""
+
+    __slots__ = ("data",)
+
+    def __init__(self, data: list[Any]) -> None:
+        self.data = data
 
 
 # -- formatters ---------------------------------------------------------------
@@ -230,8 +281,23 @@ def price_out(price: Any) -> dict[str, Any]:
 #
 # Dify hands tool parameters through untyped: a "number" arrives as int, float
 # or str depending on whether a user typed it, a workflow computed it, or a
-# model filled it in. Coercing in one place stops twelve tools each inventing
+# model filled it in. Coercing in one place stops six tools each inventing
 # their own half-correct version.
+
+
+def choice_param(value: Any, allowed: tuple[str, ...], default: str | None) -> str | None:
+    """One of ``allowed``, case-folded, or ``default`` for anything else.
+
+    A model that fills in "ATP", "Live" or a stray "any" must not turn into a
+    query string the API rejects, so an unrecognised value falls back rather
+    than being forwarded.
+    """
+    if value is None:
+        return default
+    candidate = str(value).strip().lower()
+    if candidate in allowed:
+        return candidate
+    return default
 
 
 def int_param(value: Any, default: int, *, minimum: int = 1, maximum: int = 200) -> int:
@@ -280,8 +346,8 @@ def fail(message: str, reason: str, **extra: Any) -> dict[str, Any]:
 def missing_id(name: str) -> dict[str, Any]:
     """The result for an absent or unparseable id parameter."""
     return fail(
-        f"The '{name}' parameter is required and must be a number. Ids come from "
-        "get_live_matches, get_upcoming_matches, get_recent_results or search_players.",
+        f"The '{name}' parameter is required and must be a number. Match ids come from "
+        "get_matches; player ids come from search_players.",
         "invalid_parameter",
     )
 
@@ -319,9 +385,13 @@ def run_tool(
     try:
         return body(client)
     except UpgradeRequired as exc:
-        tier = exc.required_tier or "a higher"
+        # The API answers a tier wall with a bare 403 and the SDK infers the
+        # tier where it can. When it cannot, the sentence must still read as
+        # English -- "requires the a higher plan" is what a naive f-string
+        # interpolation of the fallback produces.
+        needed = f"the {exc.required_tier} plan" if exc.required_tier else "a higher plan"
         return fail(
-            f"This data requires the {tier} plan, and the configured API key is on a lower "
+            f"This data requires {needed}, and the configured API key is on a lower "
             f"tier. Nothing is wrong with the key - the endpoint is simply not included in "
             f"the current plan. Upgrade at {PRICING_URL}\n\n{TIER_TABLE}",
             "upgrade_required",

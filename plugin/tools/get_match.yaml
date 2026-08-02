@@ -27,7 +27,7 @@ output_schema:
         id:
           type: number
           nullable: true
-          description: Match id. Pass to get_match, get_match_score, get_match_events or get_match_odds.
+          description: Match id. Pass to get_match or get_match_score.
         tournament:
           type: string
           nullable: true
@@ -85,28 +85,28 @@ output_schema:
           type: array
           description: Current prices per player.
           items:
-        type: object
-        properties:
-          side:
-            type: number
-            nullable: true
-            description: Which player this price is for, 1 or 2.
-          mid:
-            type: number
-            nullable: true
-            description: Mid price, 0-1, readable as implied probability.
-          bid:
-            type: number
-            nullable: true
-            description: Best bid.
-          ask:
-            type: number
-            nullable: true
-            description: Best ask.
-          timestamp:
-            type: string
-            nullable: true
-            description: When the price was observed.
+            type: object
+            properties:
+              side:
+                type: number
+                nullable: true
+                description: Which player this price is for, 1 or 2.
+              mid:
+                type: number
+                nullable: true
+                description: Mid price, 0-1, readable as implied probability.
+              bid:
+                type: number
+                nullable: true
+                description: Best bid.
+              ask:
+                type: number
+                nullable: true
+                description: Best ask.
+              timestamp:
+                type: string
+                nullable: true
+                description: When the price was observed.
     analysis:
       type: object
       nullable: true
@@ -128,8 +128,8 @@ parameters:
     label:
       en_US: Match ID
     human_description:
-      en_US: The match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
-    llm_description: Match id, as returned by get_live_matches, get_upcoming_matches or get_recent_results.
+      en_US: The match id, as returned by get_matches.
+    llm_description: Match id, as returned by get_matches (any status).
     form: llm
 extra:
   python:
