@@ -14,7 +14,7 @@ in the Live Tennis API or anywhere else.
 ## Setup
 
 1. Get an API key at https://livetennisapi.com/subscribe/free. The free tier
-   needs no payment card and allows 1,000 requests per day. Keys look like
+   needs no payment card and allows 100 requests per day. Keys look like
    `twjp_...`.
 2. In Dify, go to **Tools → Live Tennis API → Authorize**.
 3. Paste the key into **Live Tennis API Key** and save.
@@ -92,7 +92,7 @@ those blocks are simply absent, which is not an error.
 
 ## Rate limits
 
-Limits are per plan and enforced by the API — 1,000 requests per day on the free
+Limits are per plan and enforced by the API — 100 requests per day on the free
 tier. On a limit the tools return `ok: false` with `reason: "rate_limited"` and,
 when the API supplies it, a `retry_after` value in seconds.
 
