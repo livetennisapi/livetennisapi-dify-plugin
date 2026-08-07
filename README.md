@@ -1,6 +1,11 @@
 # livetennisapi-dify-plugin
 
-The Live Tennis API plugin for [Dify](https://dify.ai), plus everything needed
+[![CI](https://github.com/livetennisapi/livetennisapi-dify-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/livetennisapi/livetennisapi-dify-plugin/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+The Live Tennis API plugin for [Dify](https://dify.ai) — live scores,
+schedules, players, fixtures, rankings, head-to-head and a 1968–2022 results
+archive across ATP, WTA, Challenger, ITF and juniors — plus everything needed
 to submit it to `langgenius/dify-plugins`.
 
 The user-facing documentation is `plugin/README.md` — that is the file shipped
@@ -21,16 +26,17 @@ builds and submits it.
 │   ├── _assets/icon.png         brand mark; CI resolves manifest.icon here
 │   ├── livetennisapi_client.py  shared client, formatters, tier-aware guard
 │   ├── provider/
-│   │   ├── livetennisapi.yaml   credential schema + the 6 tool manifests
+│   │   ├── livetennisapi.yaml   credential schema + the 12 tool manifests
 │   │   └── livetennisapi.py     credential validation
-│   └── tools/                   6 x (<tool>.yaml + <tool>.py)
+│   └── tools/                   12 x (<tool>.yaml + <tool>.py)
 ├── test/
 │   ├── stub_api.py              local stand-in for the API
-│   └── test_tools.py            drives all 6 tools offline
-├── dist/
-│   ├── livetennisapi-0.0.1.difypkg
-│   ├── livetennisapi-0.0.2.difypkg   as merged in langgenius/dify-plugins#2773
-│   └── livetennisapi-0.0.3.difypkg
+│   └── test_tools.py            drives all 12 tools offline
+├── scripts/truthcheck.sh        product-copy truth pin, run by CI
+├── .github/workflows/ci.yml     lint + tests + truthcheck + packaging check
+├── dist/                        one .difypkg per released version
+│   └── livetennisapi-<version>.difypkg
+├── CHANGELOG.md
 └── LICENSE                      MIT -- root only; the package ships no licence file
 ```
 
@@ -51,10 +57,14 @@ so the suite never touches production.
 
 ```bash
 python test/test_tools.py
+ruff check plugin test        # lint policy pinned in ruff.toml
+sh scripts/truthcheck.sh      # product-copy truth pin
 ```
 
-It drives all six tools through: no key, the success path, a 403 tier wall,
-401, 404, 429, and unusable parameters. Two invariants are the point:
+The suite drives all twelve tools through: no key, the success path, a 403
+tier wall, 401, 404, 429, and unusable parameters — plus the three 4xx bodies
+whose content must be relayed (the daily cap's `resets_at`, the abuse
+throttle, an ambiguous name's candidates). Two invariants are the point:
 **nothing raises** — every expected failure returns a plain-English result a
 workflow can branch on — and **the API key travels in the `x-api-key` header**,
 asserted on the wire so a client-library default can never silently move it
@@ -127,6 +137,14 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 `200` means it is actually live. If it is not, check the workflow run for the
 merge commit in `langgenius/dify-plugins` and ask the maintainers to re-run it —
 or ship the next version, whose merge triggers a fresh upload.
+
+**The maintainers sometimes ship fixes themselves.** After #2808 (0.0.3)
+merged, a Dify maintainer pushed `0.0.4` and `0.0.5` packages straight into
+`langgenius/dify-plugins` — packaging fixes for Marketplace validation (0.0.4:
+version bump only; 0.0.5: dropped the `entertainment` manifest tag). Before
+building a new version, diff the newest upstream `.difypkg` against `plugin/`
+and fold any such changes back in first, so this repo stays the source of what
+the Marketplace serves. Both upstream-built packages are recorded in `dist/`.
 
 ## Licence
 

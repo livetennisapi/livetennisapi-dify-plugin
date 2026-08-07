@@ -1,7 +1,8 @@
 # Live Tennis API
 
-Live tennis scores, schedules, players and fixtures for Dify — covering ATP,
-WTA, Challenger and ITF.
+Live tennis scores, schedules, players, fixtures, rankings, head-to-head and a
+1968–2022 results archive for Dify — covering ATP, WTA, Challenger, ITF and
+juniors.
 
 **Every tool is a read.** This plugin cannot create, modify or delete anything,
 in the Live Tennis API or anywhere else.
@@ -9,7 +10,8 @@ in the Live Tennis API or anywhere else.
 - **Source repository:** https://github.com/livetennisapi/livetennisapi-dify-plugin
 - **API documentation:** https://docs.livetennisapi.com
 - **Get a free API key (no card):** https://livetennisapi.com/subscribe/free
-- **Contact:** support@livetennisapi.com
+- **Community:** https://discord.gg/f8WUZHgDm6
+- **Contact:** hello@livetennisapi.com
 
 ## Setup
 
@@ -39,23 +41,38 @@ is answered `401 {"error": "unauthorized"}`.
 
 ## Tools
 
-Six tools, one per documented public endpoint. All six work on the free plan.
+Twelve tools over the Live Tennis API's documented public endpoints. The
+**Plan** column is the lowest plan that includes the call — on a lower plan the
+tool returns `ok: false` with `reason: "upgrade_required"` and a message naming
+the plan, never an exception.
 
-| Tool | Endpoint | Description |
-| --- | --- | --- |
-| `get_matches` | `GET /matches` | Matches that are live now, upcoming, or completed — optionally one tour |
-| `get_match` | `GET /matches/{id}` | Full detail for one match by id |
-| `get_match_score` | `GET /matches/{id}/score` | Current score only — the lowest-latency read |
-| `search_players` | `GET /players` | Search players by name |
-| `get_player` | `GET /players/{id}` | One player's profile and ranking |
-| `get_fixtures` | `GET /fixtures` | The forward schedule |
+| Tool | Endpoint | Plan | Description |
+| --- | --- | --- | --- |
+| `get_matches` | `GET /matches` | FREE¹ | Matches live now, upcoming, or completed — optionally one tour |
+| `get_match` | `GET /matches/{id}` | FREE² | Full detail for one match by id |
+| `get_match_score` | `GET /matches/{id}/score` | FREE | Current score only — the lowest-latency read |
+| `search_players` | `GET /players` | FREE | Search players by name |
+| `get_player` | `GET /players/{id}` | FREE | One player's profile and ranking |
+| `get_fixtures` | `GET /fixtures` | FREE | The forward schedule |
+| `get_h2h` | `GET /h2h` | BASIC | Head-to-head between two players — archive plus current matches in one answer |
+| `get_archive_matches` | `GET /history/archive/matches` | BASIC | Search the 1968–2022 results archive |
+| `get_archive_players` | `GET /history/archive/players` | BASIC | Archive player bios and career-high ranks |
+| `get_archive_career` | `GET /history/archive/career` | BASIC | One player's career aggregates over the archive |
+| `get_rankings` | `GET /rankings` | PRO | The published ranking table for one system, optionally as of a past date |
+| `get_match_statistics` | `GET /matches/{id}/statistics` | ULTRA | In-play statistics — aces, serve split, hold/break percentages |
+
+¹ `status=completed` needs BASIC or higher; live and upcoming are FREE.
+² The embedded `market` block appears at PRO, the `analysis` block at ULTRA; on
+lower plans those blocks are simply absent, which is not an error.
 
 `get_matches` takes `status` (`live`, the default, `upcoming` or `completed`),
-an optional `tour` (`atp`, `wta`, `challenger`, `itf`) and a `limit` (1–200,
-default 20). It echoes back the `status` and `tour` it actually used, because an
-unrecognised value falls back rather than being forwarded to the API.
+an optional `tour` (`atp`, `wta`, `challenger`, `itf`, `juniors`) and a `limit`
+(1–200, default 20). It echoes back the `status` and `tour` it actually used,
+because an unrecognised value falls back rather than being forwarded to the API.
 
-Match ids come from `get_matches`; player ids come from `search_players`.
+Match ids come from `get_matches`; player ids come from `search_players`. The
+archive is its own id space — archive person ids come from
+`get_archive_players` and join `get_archive_matches` rows, never `get_player`.
 
 Every tool returns two things: prose for a model to read, and the same facts as
 JSON (`ok`, `message`, `reason`, plus the data) for a workflow to consume without
@@ -71,7 +88,14 @@ ok = true                              -> use matches / player / score / ...
 ok = false, reason = no_api_key        -> the plugin has no key configured
 ok = false, reason = unauthorized      -> the key was rejected
 ok = false, reason = not_found         -> no data for that id
-ok = false, reason = rate_limited      -> back off; retry_after when the API sent one
+ok = false, reason = rate_limited      -> back off; retry_after when the API sent one,
+                                          plus scope="day", limit_per_day and resets_at
+                                          when the daily quota is what tripped
+ok = false, reason = abuse_throttled   -> the key is blocked ~24h for repeatedly
+                                          exceeding its quota; fix the retry loop,
+                                          retry_at_epoch says when the block lifts
+ok = false, reason = ambiguous_name    -> the name matched several players; candidates
+                                          lists them
 ok = false, reason = invalid_parameter -> the message says what was wrong
 ok = false, reason = upgrade_required  -> the message names the plan required
 ok = false, reason = connection_error  -> the API could not be reached
@@ -83,43 +107,63 @@ or retry pointlessly; handed a sentence, it relays the situation to the user and
 moves on. And because nothing raises, none of these states fails a workflow node
 — the branch stays in your control via `ok` and `reason`.
 
-## Plans
+## Plans and rate limits
 
-Every endpoint these six tools call is included in the free plan. Higher plans
-raise the daily request allowance and additionally embed a match-winner `market`
-block and a model `analysis` block inside `get_match`'s response. On a lower plan
-those blocks are simply absent, which is not an error.
+Limits are per plan and enforced by the API:
 
-## Rate limits
+| Plan | Per minute | Per day | Price |
+| --- | --- | --- | --- |
+| FREE | 30 | 100 | $0 |
+| BASIC | 60 | 1,000 | $9.99/mo |
+| PRO | 300 | 10,000 | $29.99/mo |
+| ULTRA | 600 | 500,000 | $99.99/mo |
 
-Limits are per plan and enforced by the API — 100 requests per day on the free
-tier. On a limit the tools return `ok: false` with `reason: "rate_limited"` and,
-when the API supplies it, a `retry_after` value in seconds.
+On the free tier's 100 requests per day, poll no faster than every 15 minutes;
+an always-on dashboard should run on BASIC or higher. When the daily quota is
+exhausted the tools return the absolute instant it resets (`resets_at`) — the
+reset is derived from a local midnight, so trust the timestamp rather than
+assuming a time of day.
+
+Higher plans also unlock more of the surface — the tier gates in the tools
+table above. Upgrade at https://livetennisapi.com/subscribe/upgrade
 
 ## Usage
 
 **In an Agent.** Add the tools you want and ask naturally — "what tennis is on
-right now", "who plays tomorrow on the WTA tour", "how did Alcaraz do".
+right now", "who plays tomorrow on the WTA tour", "what's the Sinner–Alcaraz
+head-to-head", "who was world number 1 in July".
 
 **In a Workflow.** Read the JSON output and branch on `ok`, then on `reason`.
+
+## Changes in 0.0.6
+
+- **Six new tools:** `get_h2h`, `get_archive_matches`, `get_archive_players`,
+  `get_archive_career` (BASIC), `get_rankings` (PRO) and
+  `get_match_statistics` (ULTRA). The six existing tools are unchanged —
+  workflows built on 0.0.5 work unmodified.
+- **New `juniors` value** for `get_matches`' `tour` parameter — the API covers
+  ATP, WTA, Challenger, ITF and juniors.
+- **Richer rate-limit results:** the daily cap now reports `scope`,
+  `limit_per_day` and the absolute `resets_at` instant; the API's 24-hour abuse
+  throttle is its own `reason: "abuse_throttled"` with `retry_at_epoch`.
+- **`reason: "ambiguous_name"`** with the candidate list, when a player-name
+  fragment matches more than one person.
+- Reconciles the 0.0.4/0.0.5 Marketplace releases (packaging fixes made
+  upstream by the Dify maintainers — no tool or behaviour changes).
 
 ## Changes in 0.0.3
 
 - **Fixed:** the API documentation link now points to
-  https://docs.livetennisapi.com. The address printed in earlier versions,
-  `livetennisapi.com/docs`, redirects to the homepage rather than the
+  https://docs.livetennisapi.com. The address printed in earlier versions (a
+  `/docs` path on the main domain) redirects to the homepage rather than the
   documentation.
 - The source repository now carries the MIT licence text as a `LICENSE` file;
   previously the licence was stated but the file was missing.
 
-No tool, parameter or behaviour changed. Workflows built on 0.0.2 work
-unmodified. (0.0.2 was merged upstream but never reached the Marketplace, so
-coming from the 0.0.1 Marketplace build, the 0.0.2 changes below apply too.)
-
 ## Changes in 0.0.2
 
-This release narrows the plugin to the Live Tennis API's six documented public
-endpoints. **It is a breaking change for existing workflows.**
+This release narrows the plugin to the Live Tennis API's documented public
+endpoints. **It is a breaking change for workflows built on 0.0.1.**
 
 - `get_live_matches`, `get_upcoming_matches` and `get_recent_results` are
   replaced by the single **`get_matches`**, which takes `status`. Update any
@@ -127,8 +171,7 @@ endpoints. **It is a breaking change for existing workflows.**
 - `get_match_events`, `get_match_odds`, `get_match_analysis` and
   `check_api_status` are **removed**. Market and analysis data is still
   available, embedded in `get_match`.
-- **New `tour` parameter** on `get_matches`, for narrowing to ATP, WTA,
-  Challenger or ITF.
+- **New `tour` parameter** on `get_matches`.
 - **Fixed:** the API key is now sent in the `x-api-key` header, which is what the
   API documents, instead of `Authorization: Bearer`.
 - **Fixed:** `get_match`'s declared output schema described the market price list
