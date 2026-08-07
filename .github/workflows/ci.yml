@@ -38,7 +38,8 @@ jobs:
           chmod +x /tmp/dify
           /tmp/dify plugin package ./plugin -o /tmp/livetennisapi-ci.difypkg
           # The package must hold runtime files only -- no tests, caches or VCS.
-          unzip -l /tmp/livetennisapi-ci.difypkg
-          if unzip -l /tmp/livetennisapi-ci.difypkg | grep -E 'test/|__pycache__|\.git|\.difypkg'; then
+          # -Z1 lists bare paths, so the archive's own name cannot false-match.
+          unzip -Z1 /tmp/livetennisapi-ci.difypkg
+          if unzip -Z1 /tmp/livetennisapi-ci.difypkg | grep -E '^test/|__pycache__|^\.git|\.difypkg$'; then
             echo 'package contains non-runtime files' && exit 1
           fi
