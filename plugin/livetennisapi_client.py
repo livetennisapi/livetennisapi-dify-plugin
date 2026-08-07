@@ -488,8 +488,8 @@ def run_tool(
     except RateLimited as exc:
         if exc.scope == "day":
             # The daily cap, not the minute window. `resets_at` is an absolute
-            # instant derived from a local midnight -- never "midnight UTC" --
-            # so the ISO timestamp is relayed as-is rather than paraphrased.
+            # instant derived from a local midnight -- not a UTC one -- so the
+            # ISO timestamp is relayed as-is rather than paraphrased.
             resets = _iso(exc.resets_at)
             when = f" It resets at {resets}." if resets else ""
             quota = f" ({exc.limit_per_day}/day)" if exc.limit_per_day is not None else ""
