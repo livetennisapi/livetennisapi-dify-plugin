@@ -1,0 +1,63 @@
+identity:
+  name: get_archive_career
+  author: livetennisapi
+  label:
+    en_US: "Archive career (1968-2022)"
+description:
+  human:
+    en_US: "One player's career aggregates over the 1968-2022 results archive - record, titles, per-surface and per-year splits, serve totals. Requires the BASIC plan or higher."
+  llm: "Career aggregates for one player over the 1968-2022 results archive - win-loss record, titles (finals won), per-surface and per-level splits, year-by-year record, and summed serve statistics with derived ratios. Everything is a sum or ratio of sums over archive rows - nothing is modelled. Serve statistics exist in the corpus from 1991 only; serve.matches_with_stats states the coverage honestly, so a 1970s career has a full record and an empty serve block. The name must resolve to exactly one archive player - an ambiguous fragment returns reason=ambiguous_name with the candidates. Requires the BASIC plan or higher - on a lower plan the tool returns reason=upgrade_required, not an error."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a missing or rejected key, a tier wall, a rate limit, or an unusable parameter - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, abuse_throttled, ambiguous_name, invalid_parameter, connection_error, request_failed.
+    candidates:
+      type: array
+      nullable: true
+      description: When reason is ambiguous_name, the player names the fragment matched - re-ask with one of these.
+      items:
+        type: string
+    player:
+      type: object
+      nullable: true
+      description: The resolved player - name.
+    span:
+      type: object
+      nullable: true
+      description: first and last - the tournament start dates bounding the career in the archive.
+    record:
+      type: object
+      nullable: true
+      description: wins, losses, titles (finals won, excluding abandoned finals), by_surface and by_level win-loss splits.
+    by_year:
+      type: array
+      nullable: true
+      description: Year-by-year record - year, wins, losses.
+      items:
+        type: object
+    serve:
+      type: object
+      nullable: true
+      description: Summed serve statistics (aces, double_faults, serve_points, first_in, first_won, second_won, serve_games, bp_saved, bp_faced) plus derived ratios (first_in_pct, first_won_pct, second_won_pct, bp_saved_pct, aces_per_match - fractions 0-1, null where the denominator is zero). matches_with_stats states the coverage - the corpus records per-match serve statistics from 1991 only.
+parameters:
+  - name: name
+    type: string
+    required: true
+    label:
+      en_US: Player name
+    human_description:
+      en_US: Full or partial name resolving to exactly one archive player (at least 3 characters).
+    llm_description: The player's name, full or partial, at least 3 characters - e.g. "borg" or "Margaret Court". Must resolve to exactly one archive player; an ambiguous fragment is answered with reason=ambiguous_name and the candidate names to choose from.
+    form: llm
+extra:
+  python:
+    source: tools/get_archive_career.py

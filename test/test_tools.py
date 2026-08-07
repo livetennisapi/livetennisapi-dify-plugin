@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive all six tools against a local stub. No credentials, no network.
+"""Drive all twelve tools against a local stub. No credentials, no network.
 
 What this is really guarding
 ----------------------------
@@ -45,10 +45,21 @@ ARGS: dict[str, dict[str, Any]] = {
     "get_matches": {"status": "live", "limit": 2},
     "get_match": {"match_id": 101},
     "get_match_score": {"match_id": 101},
+    "get_match_statistics": {"match_id": 101},
     "search_players": {"query": "player", "limit": 2},
     "get_player": {"player_id": 1},
     "get_fixtures": {"limit": 2},
+    "get_h2h": {"player1": "Player One", "player2": "Player Two"},
+    "get_rankings": {"system": "atp", "limit": 3},
+    "get_archive_matches": {"name": "old winner", "limit": 2},
+    "get_archive_players": {"name": "old", "limit": 2},
+    "get_archive_career": {"name": "Old Winner"},
 }
+
+#: Path markers that, together, wall off every endpoint the twelve tools call.
+#: "/matches" also covers /matches/{id}/statistics; "/history" covers the
+#: archive trio; "/h2h" and "/rankings" stand alone.
+ALL_ENDPOINT_MARKERS = ("/matches", "/players", "/fixtures", "/h2h", "/rankings", "/history")
 
 TOOL_CLASSES: dict[str, Any] = {}
 for name in ARGS:
@@ -148,6 +159,40 @@ def main() -> int:
     check("Model analysis" in text, "get_match: prose omits the analysis block")
     print(f"  get_match embeds market + analysis: mid={market['prices'][0]['mid']}, wp={analysis['win_probability_p1']}")
 
+    # The new surface, value-checked the same way.
+    _, h2h = invoke("get_h2h", KEY)
+    check(h2h["totals"].get("p1_wins") == 3, f"get_h2h: totals not surfaced ({h2h.get('totals')!r})")
+    check(len(h2h["meetings"]) == 2, f"get_h2h: {len(h2h.get('meetings', []))} meeting(s), expected 2")
+    check(h2h["players"] == {"p1": "Player One", "p2": "Player Two"}, f"get_h2h: players {h2h.get('players')!r}")
+    print(f"  get_h2h totals: {h2h['totals']}")
+
+    _, table = invoke("get_rankings", KEY)
+    row = (table.get("rankings") or [{}])[0]
+    check(row.get("rank") == 1 and row.get("player_name") == "Player One", f"get_rankings: row {row!r}")
+    check(table.get("system") == "atp", f"get_rankings: echoed system {table.get('system')!r}")
+    print(f"  get_rankings row 1: {row['player_name']} ({row['points']} pts)")
+
+    _, stats = invoke("get_match_statistics", KEY)
+    p1_stats = (stats.get("players") or {}).get("p1") or {}
+    check(p1_stats.get("hold_pct") == 88, f"get_match_statistics: p1 block {p1_stats!r}")
+    check(p1_stats.get("measured", {}).get("aces") == 9, "get_match_statistics: measured family not surfaced")
+    print(f"  get_match_statistics p1: hold {p1_stats.get('hold_pct')}%, aces {p1_stats.get('measured', {}).get('aces')}")
+
+    _, archive = invoke("get_archive_matches", KEY)
+    arow = (archive.get("matches") or [{}])[0]
+    check(arow.get("winner", {}).get("name") == "Old Winner", f"get_archive_matches: row {arow!r}")
+    check(arow.get("event_date") == "1980-06-23", f"get_archive_matches: event_date {arow.get('event_date')!r}")
+    print(f"  get_archive_matches: {arow['winner']['name']} d. {arow['loser']['name']} {arow['score']}")
+
+    _, bios = invoke("get_archive_players", KEY)
+    bio = (bios.get("players") or [{}])[0]
+    check(bio.get("career_high_rank") == 1, f"get_archive_players: bio {bio!r}")
+    print(f"  get_archive_players: {bio['name']} career-high {bio['career_high_rank']}")
+
+    _, career = invoke("get_archive_career", KEY)
+    check(career.get("record", {}).get("wins") == 600, f"get_archive_career: record {career.get('record')!r}")
+    print(f"  get_archive_career: {career['record']['wins']}-{career['record']['losses']}")
+
     # 4. THE WIRE. Every request so far must have authenticated via x-api-key.
     phase("4. the API key travels in x-api-key, never Authorization: Bearer")
     check(bool(stub.seen_headers), "stub recorded no request headers")
@@ -192,7 +237,7 @@ def main() -> int:
 
     # 6. The tier wall. Everything answers 403 upgrade_required; nothing raises.
     phase("6. tier wall - every endpoint answers 403 upgrade_required")
-    stub.rules = {"/matches": 403, "/players": 403, "/fixtures": 403}
+    stub.rules = {marker: 403 for marker in ALL_ENDPOINT_MARKERS}
     for name in ARGS:
         text, payload = invoke(name, KEY)  # must not raise
         check(payload.get("ok") is False, f"{name} (403): expected ok false")
@@ -212,7 +257,7 @@ def main() -> int:
         (429, "rate_limited", "rate limit"),
     ):
         phase(f"7. {status_code} {label} - normal result, no exception")
-        stub.rules = {"/matches": status_code, "/players": status_code, "/fixtures": status_code}
+        stub.rules = {marker: status_code for marker in ALL_ENDPOINT_MARKERS}
         for name in ARGS:
             text, payload = invoke(name, KEY)  # must not raise
             check(payload.get("ok") is False, f"{name} ({status_code}): expected ok false")
@@ -222,6 +267,42 @@ def main() -> int:
             )
             check(bool(text), f"{name} ({status_code}): empty message")
             print(f"  {name:18s} reason={payload.get('reason'):14s} :: {text[:60]}")
+
+    # 7b. The three 4xx bodies whose CONTENT the plugin must relay, not just
+    # survive: the daily cap, the abuse throttle, and an ambiguous name.
+    phase("7b. daily cap 429 - resets_at surfaced as an absolute instant")
+    stub.rules = {
+        "/matches": (
+            429,
+            {"error": "rate_limited", "scope": "day", "limit_per_day": 100, "resets_at": "2026-08-07T21:00:00Z"},
+        )
+    }
+    text, payload = invoke("get_matches", KEY)
+    check(payload.get("reason") == "rate_limited", f"daily 429: reason {payload.get('reason')!r}")
+    check(payload.get("scope") == "day", f"daily 429: scope {payload.get('scope')!r}")
+    check(payload.get("limit_per_day") == 100, f"daily 429: limit_per_day {payload.get('limit_per_day')!r}")
+    check("2026-08-07T21:00" in str(payload.get("resets_at")), f"daily 429: resets_at {payload.get('resets_at')!r}")
+    check("resets at" in text, "daily 429: prose does not say when the quota resets")
+    check("midnight" not in text.lower(), "daily 429: prose paraphrases the reset instant as a midnight")
+    print(f"  daily cap relayed: {text.splitlines()[0]}")
+
+    phase("7c. abuse throttle 429 - own reason, own advice")
+    stub.rules = {"/matches": (429, {"error": "abuse_throttled", "retry_at_epoch": 1786500000})}
+    text, payload = invoke("get_matches", KEY)
+    check(payload.get("reason") == "abuse_throttled", f"abuse 429: reason {payload.get('reason')!r}")
+    check(payload.get("retry_at_epoch") == 1786500000, f"abuse 429: retry_at_epoch {payload.get('retry_at_epoch')!r}")
+    check("retry loop" in text or "polling" in text, "abuse 429: prose does not name the remedy")
+    print(f"  abuse throttle relayed: {text.splitlines()[0][:76]}")
+
+    phase("7d. ambiguous name 400 - candidates relayed")
+    stub.rules = {
+        "/h2h": (400, {"error": "ambiguous_name", "candidates": ["Player One", "Player Uno"]})
+    }
+    text, payload = invoke("get_h2h", KEY, {"player1": "play", "player2": "Player Two"})
+    check(payload.get("reason") == "ambiguous_name", f"ambiguous 400: reason {payload.get('reason')!r}")
+    check(payload.get("candidates") == ["Player One", "Player Uno"], f"ambiguous 400: {payload.get('candidates')!r}")
+    check("Player Uno" in text, "ambiguous 400: prose omits the candidates")
+    print(f"  candidates relayed: {payload['candidates']}")
 
     stub.rules = {}
 
@@ -233,6 +314,11 @@ def main() -> int:
         ("get_match", {"match_id": "not-a-number"}),
         ("get_player", {}),
         ("search_players", {"query": "  "}),
+        ("get_match_statistics", {}),
+        ("get_h2h", {"player1": "ab", "player2": "Player Two"}),
+        ("get_h2h", {"player1": "Player One"}),
+        ("get_archive_career", {}),
+        ("get_archive_career", {"name": "xy"}),
     ):
         text, payload = invoke(name, KEY, args)
         check(payload.get("ok") is False, f"{name} (bad params {args!r}): expected ok false")
@@ -269,6 +355,7 @@ def main() -> int:
 
     print(
         f"OK - {len(ARGS)} tools x (no key, success, 403 tier wall, 401, 404, 429, bad params); "
+        f"daily-cap resets_at, abuse throttle and ambiguous-name candidates relayed; "
         f"x-api-key asserted on the wire; nothing raised"
     )
     return 0

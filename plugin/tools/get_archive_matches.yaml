@@ -1,0 +1,137 @@
+identity:
+  name: get_archive_matches
+  author: livetennisapi
+  label:
+    en_US: "Results archive (1968-2022)"
+description:
+  human:
+    en_US: "Search the 1968-2022 results archive - ATP and WTA main draws, qualifying and the ITF/futures tiers underneath them. Requires the BASIC plan or higher."
+  llm: "Search historical tennis results, 1968 through 2022, from a licensed results archive - ATP and WTA, main draws, qualifying and the ITF/futures tiers. Filter by player name (either participant, at least 3 characters), tour (atp or wta), tournament start date range (from/to, YYYY-MM-DD) and round (F, SF, QF, R16, R32, R64, R128, RR, Q1-Q4). Newest tournament first. Matches from 2023 onward are NOT here - use get_matches with status=completed for those. Requires the BASIC plan or higher - on a lower plan the tool returns reason=upgrade_required, not an error."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a missing or rejected key, a tier wall, a rate limit, or an unusable parameter - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, abuse_throttled, invalid_parameter, connection_error, request_failed.
+    matches:
+      type: array
+      description: The archive results, newest tournament first.
+      items:
+        type: object
+        properties:
+          id:
+            type: number
+            description: Archive record id - the archive is its own id space, distinct from get_matches ids.
+          tour:
+            type: string
+            nullable: true
+            description: atp or wta.
+          tournament:
+            type: string
+            nullable: true
+          level:
+            type: string
+            nullable: true
+            description: Source tier code - G (Grand Slam), M (Masters), A, F, D, C, O, or a futures category code.
+          surface:
+            type: string
+            nullable: true
+          event_date:
+            type: string
+            nullable: true
+            description: Tournament START date - per-match dates do not exist in this era's records, and none are invented.
+          round:
+            type: string
+            nullable: true
+          best_of:
+            type: number
+            nullable: true
+          winner:
+            type: object
+            description: The winner - a recorded fact of the source data, never inferred. name, country, rank (at the time of the match), seed, player_id (archive person id, joins get_archive_players).
+          loser:
+            type: object
+            description: Same shape as winner.
+          score:
+            type: string
+            nullable: true
+            description: The final score as published, e.g. "6-4 7-6(5)", "6-3 RET", "W/O".
+          outcome:
+            type: string
+            nullable: true
+            description: completed, retired, walkover, default or abandoned - parsed from the score's own vocabulary, null when unparseable.
+parameters:
+  - name: name
+    type: string
+    required: false
+    label:
+      en_US: Player name
+    human_description:
+      en_US: Match either participant by full or partial name (at least 3 characters).
+    llm_description: Filter to matches where EITHER participant's name contains this text (case-insensitive, at least 3 characters) - e.g. "borg" or "navratilova".
+    form: llm
+  - name: tour
+    type: select
+    required: false
+    options:
+      - value: atp
+        label:
+          en_US: ATP (men)
+      - value: wta
+        label:
+          en_US: WTA (women)
+    label:
+      en_US: Tour
+    human_description:
+      en_US: Narrow to one tour. The archive holds the ATP and WTA lineages.
+    llm_description: Narrow to "atp" or "wta". The archive records the ATP and WTA lineages only. Leave unset for both. Any other value is ignored.
+    form: llm
+  - name: from
+    type: string
+    required: false
+    label:
+      en_US: From date
+    human_description:
+      en_US: Earliest tournament start date, YYYY-MM-DD.
+    llm_description: Lower bound on the TOURNAMENT START date, formatted YYYY-MM-DD - e.g. "1980-01-01". The archive covers 1968 through 2022.
+    form: llm
+  - name: to
+    type: string
+    required: false
+    label:
+      en_US: To date
+    human_description:
+      en_US: Latest tournament start date, YYYY-MM-DD.
+    llm_description: Upper bound on the TOURNAMENT START date, formatted YYYY-MM-DD - e.g. "1980-12-31".
+    form: llm
+  - name: round
+    type: string
+    required: false
+    label:
+      en_US: Round
+    human_description:
+      en_US: One round code - F, SF, QF, R16, R32, R64, R128, RR, or Q1-Q4.
+    llm_description: Filter to one round using the controlled vocabulary - "F" (final), "SF", "QF", "R16", "R32", "R64", "R128", "RR" (round robin), or "Q1" through "Q4" (qualifying). Case-insensitive.
+    form: llm
+  - name: limit
+    type: number
+    required: false
+    default: 20
+    min: 1
+    max: 200
+    label:
+      en_US: Limit
+    human_description:
+      en_US: Maximum results to return (1-200).
+    llm_description: Maximum results to return (1-200). Defaults to 20. Values outside the range are clamped, not rejected.
+    form: llm
+extra:
+  python:
+    source: tools/get_archive_matches.py

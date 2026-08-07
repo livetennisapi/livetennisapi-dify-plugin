@@ -1,0 +1,112 @@
+identity:
+  name: get_rankings
+  author: livetennisapi
+  label:
+    en_US: "Ranking table"
+description:
+  human:
+    en_US: "The published ranking table for one system - ATP, WTA, or an ITF circuit - in rank order, optionally as of a past date. Requires the PRO plan or higher."
+  llm: "The full published ranking table for one system in rank order - the newest ranking week at or before as_of (omit as_of for the latest). system is one of atp, wta, itf_jt (juniors), itf_mt (men's ITF World Tennis Tour), itf_wt (women's). Rows carry player_name as published, so the table has no holes even for players outside the API's roster (their player_id is null). ATP/WTA history goes back through past weeks; ITF history begins 2026-07-29. UTR has no table - it is a rating, not a ranking. For one current player's rank, get_player is cheaper and works on the free plan. Requires the PRO plan or higher - on a lower plan the tool returns reason=upgrade_required, not an error."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a missing or rejected key, a tier wall, a rate limit, or an unusable parameter - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, abuse_throttled, invalid_parameter, connection_error, request_failed.
+    system:
+      type: string
+      nullable: true
+      description: The system actually queried - atp, wta, itf_jt, itf_mt or itf_wt. Echoed back because an unrecognised value falls back to atp.
+    rankings:
+      type: array
+      description: The table in rank order.
+      items:
+        type: object
+        properties:
+          rank:
+            type: number
+            nullable: true
+          player_id:
+            type: number
+            nullable: true
+            description: The roster player id (usable with get_player), or null for players outside the roster - the published table has no silent holes.
+          player_name:
+            type: string
+            nullable: true
+            description: The name as the ranking publisher printed it.
+          system:
+            type: string
+            nullable: true
+          points:
+            type: number
+            nullable: true
+          previous_rank:
+            type: number
+            nullable: true
+            description: The rank at the immediately preceding snapshot week (ATP/WTA only; null when no prior week is held).
+          rank_movement:
+            type: number
+            nullable: true
+            description: The circuit's own signed weekly movement (ITF systems only; null elsewhere).
+          effective_date:
+            type: string
+            nullable: true
+            description: The publication week this record took effect.
+parameters:
+  - name: system
+    type: select
+    required: false
+    default: atp
+    options:
+      - value: atp
+        label:
+          en_US: ATP singles
+      - value: wta
+        label:
+          en_US: WTA singles
+      - value: itf_jt
+        label:
+          en_US: ITF juniors
+      - value: itf_mt
+        label:
+          en_US: ITF men's World Tennis Tour
+      - value: itf_wt
+        label:
+          en_US: ITF women's World Tennis Tour
+    label:
+      en_US: Ranking system
+    human_description:
+      en_US: Which published table to return. Defaults to ATP singles.
+    llm_description: Which ranking system's table to return - "atp", "wta", "itf_jt" (juniors), "itf_mt" or "itf_wt". Defaults to "atp". The systems are not comparable and are never collapsed into one list. Any other value is treated as "atp".
+    form: llm
+  - name: as_of
+    type: string
+    required: false
+    label:
+      en_US: As of date
+    human_description:
+      en_US: A past date, YYYY-MM-DD. Returns the newest ranking week at or before it.
+    llm_description: Optional date, formatted YYYY-MM-DD - returns the newest published ranking week at or before this date, never one after it. Omit for the latest table. ITF history begins 2026-07-29.
+    form: llm
+  - name: limit
+    type: number
+    required: false
+    default: 20
+    min: 1
+    max: 200
+    label:
+      en_US: Limit
+    human_description:
+      en_US: How deep into the table to go (1-200).
+    llm_description: How many rows of the table to return, from rank 1 down (1-200). Defaults to 20. Values outside the range are clamped, not rejected.
+    form: llm
+extra:
+  python:
+    source: tools/get_rankings.py

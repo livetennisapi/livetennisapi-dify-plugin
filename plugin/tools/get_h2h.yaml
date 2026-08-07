@@ -1,0 +1,95 @@
+identity:
+  name: get_h2h
+  author: livetennisapi
+  label:
+    en_US: "Head-to-head"
+description:
+  human:
+    en_US: "The head-to-head record between two players - the 1968-2022 results archive plus current matches in one answer. Requires the BASIC plan or higher."
+  llm: "Head-to-head record between two tennis players, by name. Combines the 1968-2022 results archive with current (2023 onward) completed matches - totals, per-surface split, and the meetings newest first. Names are full or partial (at least 3 characters); an ambiguous fragment returns reason=ambiguous_name with the candidate names to choose from. Requires the BASIC plan or higher - on a lower plan the tool returns reason=upgrade_required, not an error."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a missing or rejected key, a tier wall, a rate limit, or an unusable parameter - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, abuse_throttled, ambiguous_name, invalid_parameter, connection_error, request_failed.
+    candidates:
+      type: array
+      nullable: true
+      description: When reason is ambiguous_name, the player names the fragment matched - re-ask with one of these.
+      items:
+        type: string
+    players:
+      type: object
+      nullable: true
+      description: The resolved names - p1 and p2 as this head-to-head counts them. Null when no player matched.
+    totals:
+      type: object
+      nullable: true
+      description: p1_wins, p2_wins, meetings, and undecided (meetings with no derivable winner, never counted in wins).
+    by_surface:
+      type: object
+      nullable: true
+      description: Per-surface win split, keyed by surface name plus 'unknown'. Each value has p1 and p2 win counts.
+    meetings:
+      type: array
+      description: Every meeting, newest first (capped at 200 by the API).
+      items:
+        type: object
+        properties:
+          era:
+            type: string
+            description: Which half of the product served the row - 'archive' (1968-2022) or 'current' (2023 onward).
+          date:
+            type: string
+            nullable: true
+            description: For archive rows this is the tournament START date - per-match dates do not exist in that era's records.
+          tournament:
+            type: string
+            nullable: true
+          round:
+            type: string
+            nullable: true
+          surface:
+            type: string
+            nullable: true
+          score:
+            type: string
+            nullable: true
+          outcome:
+            type: string
+            nullable: true
+            description: completed, retired, walkover, default or abandoned - walkovers and retirements are part of the record.
+          winner:
+            type: number
+            nullable: true
+            description: 1 or 2 OF THIS REQUEST (your player1/player2), not of the underlying match row. Null when underivable.
+parameters:
+  - name: player1
+    type: string
+    required: true
+    label:
+      en_US: Player 1
+    human_description:
+      en_US: First player, by full or partial name (at least 3 characters).
+    llm_description: The first player's name, full or partial, at least 3 characters - e.g. "sinner" or "Jannik Sinner". Wins are counted for this player as player 1.
+    form: llm
+  - name: player2
+    type: string
+    required: true
+    label:
+      en_US: Player 2
+    human_description:
+      en_US: Second player, by full or partial name (at least 3 characters).
+    llm_description: The second player's name, full or partial, at least 3 characters. Wins are counted for this player as player 2.
+    form: llm
+extra:
+  python:
+    source: tools/get_h2h.py

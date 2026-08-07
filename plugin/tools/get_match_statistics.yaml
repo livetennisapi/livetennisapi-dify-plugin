@@ -1,0 +1,54 @@
+identity:
+  name: get_match_statistics
+  author: livetennisapi
+  label:
+    en_US: "Match statistics"
+description:
+  human:
+    en_US: "In-play statistics for one match - aces, double faults, serve split, hold and break percentages. Works on live and finished matches. Requires the ULTRA plan."
+  llm: "In-play statistics for one match by id (from get_matches) - works on a live match and on a finished one. Two families per player, deliberately not merged: fields DERIVED from the point-by-point record (hold/break percentages, break points, service and return points), and 'measured' counts taken upstream (aces, double faults, serve split, winners, unforced errors - the quantities no point record can yield). An absent measured field is omitted, never zero-filled. A match with nothing held answers ok=true with players=null - that is the honest answer, not an error. Requires the ULTRA plan - on a lower plan the tool returns reason=upgrade_required, not an error."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a missing or rejected key, a tier wall, a rate limit, or an unusable parameter - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, abuse_throttled, invalid_parameter, connection_error, request_failed.
+    match_id:
+      type: number
+      nullable: true
+    coverage:
+      type: string
+      nullable: true
+      description: live, final, stale, none or diverged - a summary only. Branch on freshness.derived / freshness.measured for per-family truth.
+    games_counted:
+      type: number
+      nullable: true
+      description: Games behind the derived family. Tiebreaks and inconsistent games are excluded, and say so in their own counters.
+    freshness:
+      type: object
+      nullable: true
+      description: Per-family coverage and age. The two age_seconds use DIFFERENT clocks (derived is behind the newest score row; measured is wall clock) and must not be compared.
+    players:
+      type: object
+      nullable: true
+      description: p1 and p2 statistics blocks. Null when the match exists but nothing is held for it - which is a normal ok=true result. Top-level fields of each block are DERIVED from the point record; the nested 'measured' object holds upstream counts (aces, double_faults, first_serve_in, winners, unforced_errors and more), where an absent field means not held, never zero.
+parameters:
+  - name: match_id
+    type: number
+    required: true
+    label:
+      en_US: Match id
+    human_description:
+      en_US: The match id, from get_matches.
+    llm_description: The numeric match id, as returned by get_matches. Works for matches in progress and finished ones.
+    form: llm
+extra:
+  python:
+    source: tools/get_match_statistics.py

@@ -86,6 +86,130 @@ ANALYSIS: dict[str, Any] = {
 
 EVENT: dict[str, Any] = {"timestamp": "2026-07-22T00:00:00Z", "type": "break", "player": 1}
 
+H2H: dict[str, Any] = {
+    "players": {"p1": {"name": "Player One"}, "p2": {"name": "Player Two"}},
+    "totals": {"p1_wins": 3, "p2_wins": 1, "meetings": 5, "undecided": 1},
+    "by_surface": {"hard": {"p1": 2, "p2": 1}, "clay": {"p1": 1, "p2": 0}},
+    "meetings": [
+        {
+            "era": "current",
+            "date": "2026-07-01",
+            "tournament": "Test Open",
+            "round": "F",
+            "surface": "hard",
+            "score": "6-4 6-4",
+            "outcome": "completed",
+            "winner": 1,
+        },
+        {
+            "era": "archive",
+            "date": "2021-06-01",
+            "tournament": "Old Open",
+            "round": "SF",
+            "surface": "clay",
+            "score": "W/O",
+            "outcome": "walkover",
+            "winner": None,
+        },
+    ],
+}
+
+ARCHIVE_MATCH: dict[str, Any] = {
+    "id": 555,
+    "source_id": "atp-1980-001",
+    "tour": "atp",
+    "level": "G",
+    "tournament": "Old Open",
+    "surface": "grass",
+    "event_date": "1980-06-23",
+    "round": "F",
+    "best_of": 5,
+    "winner": {"name": "Old Winner", "country": "SWE", "rank": 1, "seed": 1, "player_id": 9001},
+    "loser": {"name": "Old Loser", "country": "USA", "rank": 2, "seed": 2, "player_id": 9002},
+    "score": "6-4 7-6(5) 6-3",
+    "outcome": "completed",
+}
+
+ARCHIVE_PLAYER: dict[str, Any] = {
+    "id": 9001,
+    "tour": "atp",
+    "name": "Old Winner",
+    "hand": "R",
+    "dob": "1956-06-06",
+    "country": "SWE",
+    "height_cm": 180,
+    "career_high_rank": 1,
+    "career_high_date": "1980-08-01",
+}
+
+ARCHIVE_CAREER: dict[str, Any] = {
+    "player": {"name": "Old Winner"},
+    "span": {"first": "1973-01-01", "last": "1983-07-01"},
+    "record": {
+        "wins": 600,
+        "losses": 120,
+        "titles": 60,
+        "by_surface": {"clay": {"wins": 300, "losses": 40}},
+        "by_level": {"G": {"wins": 100, "losses": 15}},
+    },
+    "by_year": [{"year": 1980, "wins": 70, "losses": 6}],
+    "serve": {"matches_with_stats": 0},
+}
+
+RANKING: dict[str, Any] = {
+    "player_id": 1,
+    "player_name": "Player One",
+    "system": "atp",
+    "tour": "atp",
+    "rank": 1,
+    "points": 9000,
+    "previous_rank": 2,
+    "rank_movement": None,
+    "rating": None,
+    "effective_date": "2026-07-20",
+    "observed_at": "2026-07-20T00:00:00Z",
+}
+
+STATISTICS: dict[str, Any] = {
+    "match_id": 101,
+    "coverage": "live",
+    "as_of": "2026-07-22T00:10:00Z",
+    "age_seconds": 3,
+    "games_counted": 15,
+    "tiebreak_games_excluded": 0,
+    "inconsistent_games_excluded": 0,
+    "sets_covered": [1, 2],
+    "freshness": {
+        "derived": {"coverage": "live", "age_seconds": 3},
+        "measured": {"coverage": "live", "age_seconds": 20},
+        "measured_divergence": None,
+    },
+    "players": {
+        "p1": {
+            "service_games_played": 8,
+            "service_games_won": 7,
+            "hold_pct": 88,
+            "return_games_played": 7,
+            "return_games_won": 2,
+            "break_pct": 29,
+            "break_points_faced": 3,
+            "break_points_saved": 2,
+            "measured": {"aces": 9, "double_faults": 1},
+        },
+        "p2": {
+            "service_games_played": 7,
+            "service_games_won": 5,
+            "hold_pct": 71,
+            "return_games_played": 8,
+            "return_games_won": 1,
+            "break_pct": 13,
+            "break_points_faced": 5,
+            "break_points_saved": 3,
+            "measured": {"aces": 4, "double_faults": 3},
+        },
+    },
+}
+
 MATCH["market"] = MARKET
 MATCH["analysis"] = ANALYSIS
 
@@ -95,15 +219,18 @@ def page(row: dict[str, Any]) -> dict[str, Any]:
 
 
 class StubAPI:
-    """A running stub. ``rules`` forces a status for any path containing a key.
+    """A running stub. ``rules`` forces a response for any path containing a key.
 
-    Example -- make everything above the FREE tier answer as a tier wall::
+    A rule value is either a bare status (the body becomes the canonical error
+    for that status) or a ``(status, body)`` pair for the responses whose BODY
+    is the thing under test -- the daily-cap 429, the abuse throttle, the
+    ambiguous-name 400::
 
-        stub.rules = {"/history": 403, "/events": 403}
+        stub.rules = {"/history": 403, "/h2h": (400, {"error": "ambiguous_name", ...})}
     """
 
     def __init__(self) -> None:
-        self.rules: dict[str, int] = {}
+        self.rules: dict[str, int | tuple[int, dict[str, Any]]] = {}
         self.asked: list[str] = []
         #: One entry per request: the path plus the two auth-relevant headers,
         #: so a test can assert what actually went over the wire.
@@ -116,7 +243,7 @@ class StubAPI:
         assert self._server is not None, "stub is not started"
         return f"http://127.0.0.1:{self._server.server_address[1]}"
 
-    def _forced_status(self, path: str) -> int | None:
+    def _forced_status(self, path: str) -> int | tuple[int, dict[str, Any]] | None:
         for marker, status in self.rules.items():
             if marker in path:
                 return status
@@ -125,6 +252,19 @@ class StubAPI:
     def _body_for(self, path: str) -> dict[str, Any]:
         if "/health" in path:
             return {"status": "ok", "version": "v1"}
+        if "/statistics" in path:
+            return STATISTICS
+        if "/h2h" in path:
+            return H2H
+        if "/history/archive/career" in path:
+            return ARCHIVE_CAREER
+        if "/history/archive/players" in path:
+            return page(ARCHIVE_PLAYER)
+        if "/history/archive/matches" in path:
+            single = bool(re.search(r"/\d+$", path))
+            return ARCHIVE_MATCH if single else page(ARCHIVE_MATCH)
+        if "/rankings" in path:
+            return page(RANKING)
         if "/events" in path:
             return page(EVENT)
         if "/analysis" in path:
@@ -162,6 +302,10 @@ class StubAPI:
 
                 forced = stub._forced_status(path)
                 if forced is not None:
+                    if isinstance(forced, tuple):
+                        status, body = forced
+                        self._send(status, body)
+                        return
                     codes = {
                         401: "unauthorized",
                         403: "upgrade_required",

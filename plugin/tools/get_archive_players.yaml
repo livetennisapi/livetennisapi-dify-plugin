@@ -1,0 +1,99 @@
+identity:
+  name: get_archive_players
+  author: livetennisapi
+  label:
+    en_US: "Archive players (1968-2022)"
+description:
+  human:
+    en_US: "The people of the 1968-2022 results archive - bios, and career-high rank with the week it was first reached. Requires the BASIC plan or higher."
+  llm: "Search the players of the 1968-2022 results archive by name - hand, date of birth, country, height, and career-high rank with the earliest week it was reached (computed from the corpus's own weekly ranking tables: ATP from 1973, WTA from 1984). The returned id is the archive person id that get_archive_matches rows carry as winner/loser player_id, scoped per tour - it is NOT a search_players/get_player id. For current players use search_players instead. Requires the BASIC plan or higher - on a lower plan the tool returns reason=upgrade_required, not an error."
+output_schema:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the call returned data. False for a missing or rejected key, a tier wall, a rate limit, or an unusable parameter - all normal states with a clear remedy, not failures.
+    message:
+      type: string
+      description: Human-readable summary. Identical to the text output, so either half can be used alone.
+    reason:
+      type: string
+      nullable: true
+      description: Why no data was returned, when ok is false. One of no_api_key, unauthorized, upgrade_required, not_found, rate_limited, abuse_throttled, invalid_parameter, connection_error, request_failed.
+    players:
+      type: array
+      description: The archive player bios, ordered by name. Null fields are the era's silence - nothing is invented.
+      items:
+        type: object
+        properties:
+          id:
+            type: number
+            description: Archive person id, scoped per tour - joins get_archive_matches winner/loser player_id. Never a search_players id.
+          tour:
+            type: string
+            nullable: true
+            description: atp or wta.
+          name:
+            type: string
+            nullable: true
+          hand:
+            type: string
+            nullable: true
+          dob:
+            type: string
+            nullable: true
+            description: Date of birth, YYYY-MM-DD.
+          country:
+            type: string
+            nullable: true
+          height_cm:
+            type: number
+            nullable: true
+          career_high_rank:
+            type: number
+            nullable: true
+          career_high_date:
+            type: string
+            nullable: true
+            description: The earliest week the career-high rank was reached.
+parameters:
+  - name: name
+    type: string
+    required: false
+    label:
+      en_US: Name
+    human_description:
+      en_US: Full or partial player name.
+    llm_description: Full or partial player name to search for, e.g. "borg" or "Chris Evert". Leave unset to list players alphabetically.
+    form: llm
+  - name: tour
+    type: select
+    required: false
+    options:
+      - value: atp
+        label:
+          en_US: ATP (men)
+      - value: wta
+        label:
+          en_US: WTA (women)
+    label:
+      en_US: Tour
+    human_description:
+      en_US: Narrow to one tour's people.
+    llm_description: Narrow to "atp" or "wta". Archive person ids are scoped per tour. Leave unset for both. Any other value is ignored.
+    form: llm
+  - name: limit
+    type: number
+    required: false
+    default: 10
+    min: 1
+    max: 200
+    label:
+      en_US: Limit
+    human_description:
+      en_US: Maximum players to return (1-200).
+    llm_description: Maximum players to return (1-200). Defaults to 10. Values outside the range are clamped, not rejected.
+    form: llm
+extra:
+  python:
+    source: tools/get_archive_players.py

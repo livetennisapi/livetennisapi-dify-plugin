@@ -4,7 +4,7 @@ identity:
   label:
     en_US: Live Tennis API
   description:
-    en_US: Live tennis scores, schedules, players and fixtures across ATP, WTA, Challenger and ITF. Every tool is a read - nothing is ever written or changed.
+    en_US: Live tennis scores, schedules, players, fixtures, rankings, head-to-head and a 1968-2022 results archive across ATP, WTA, Challenger, ITF and juniors. Every tool is a read - nothing is ever written or changed.
   icon: icon.png
   tags:
     - news
@@ -24,9 +24,15 @@ tools:
   - tools/get_matches.yaml
   - tools/get_match.yaml
   - tools/get_match_score.yaml
+  - tools/get_match_statistics.yaml
   - tools/search_players.yaml
   - tools/get_player.yaml
   - tools/get_fixtures.yaml
+  - tools/get_h2h.yaml
+  - tools/get_rankings.yaml
+  - tools/get_archive_matches.yaml
+  - tools/get_archive_players.yaml
+  - tools/get_archive_career.yaml
 extra:
   python:
     source: provider/livetennisapi.py
