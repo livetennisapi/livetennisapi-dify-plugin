@@ -17,7 +17,6 @@ plugins:
     - provider/livetennisapi.yaml
 privacy: PRIVACY.md
 tags:
-  - entertainment
   - news
 meta:
   version: 0.0.1
