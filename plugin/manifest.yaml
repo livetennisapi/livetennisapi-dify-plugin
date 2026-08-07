@@ -1,11 +1,11 @@
-version: 0.0.3
+version: 0.0.6
 type: plugin
 author: livetennisapi
 name: livetennisapi
 label:
   en_US: Live Tennis API
 description:
-  en_US: Live tennis scores, schedules, players and fixtures from ATP, WTA, Challenger and ITF. Six read-only tools over the Live Tennis API's documented public endpoints - nothing is ever written or changed.
+  en_US: Live tennis scores, schedules, players, fixtures, rankings, head-to-head and a 1968-2022 results archive from ATP, WTA, Challenger, ITF and juniors. Twelve read-only tools over the Live Tennis API's documented public endpoints - nothing is ever written or changed.
 icon: icon.png
 repo: https://github.com/livetennisapi/livetennisapi-dify-plugin
 created_at: 2026-07-22T00:00:00Z
