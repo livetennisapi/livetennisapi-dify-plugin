@@ -1,6 +1,6 @@
 """Shared plumbing for every Live Tennis API tool.
 
-Three things live here so that six tool files cannot drift apart:
+Three things live here so that twelve tool files cannot drift apart:
 
 1. **The client factory.** The API base URL is a module constant, not a
    credential. A user-settable base URL would make the plugin's network
@@ -27,7 +27,9 @@ from itertools import zip_longest
 from typing import Any
 
 from livetennisapi import (
+    AbuseThrottled,
     APIConnectionError,
+    BadRequest,
     LiveTennisAPI,
     LiveTennisAPIError,
     NotFound,
@@ -42,12 +44,12 @@ BASE_URL = "https://api.livetennisapi.com/api/public/v1"
 SIGNUP_URL = "https://livetennisapi.com/subscribe/free"
 PRICING_URL = "https://livetennisapi.com/#pricing"
 
-#: Every endpoint this plugin calls is on the FREE tier, so a tier wall is only
-#: reachable through the optional blocks embedded in a match detail response.
+#: What each plan unlocks, phrased for a model to relay when a tier wall answers.
 TIER_TABLE = (
-    "Tiers: FREE = matches (live, upcoming and completed), scores, players, fixtures - "
-    "everything this plugin's tools call; "
-    "PRO and ULTRA additionally embed market prices and model analysis in a match detail."
+    "Tiers: FREE = live and upcoming matches, scores, players, fixtures; "
+    "BASIC adds completed results, head-to-head and the 1968-2022 results archive; "
+    "PRO adds ranking tables and embeds market prices in a match detail; "
+    "ULTRA adds match statistics and embeds model analysis in a match detail."
 )
 
 REQUEST_TIMEOUT = 30.0
@@ -56,7 +58,16 @@ REQUEST_TIMEOUT = 30.0
 MATCH_STATUSES = ("live", "upcoming", "completed")
 
 #: The values ``GET /matches`` accepts for ``tour``. Sent lower-case.
-TOURS = ("atp", "wta", "challenger", "itf")
+TOURS = ("atp", "wta", "challenger", "itf", "juniors")
+
+#: The tours of the 1968-2022 results archive -- a licensed historical corpus
+#: with its own id space, which holds the ATP and WTA lineages (main draws,
+#: qualifying and the ITF/futures tiers underneath each).
+ARCHIVE_TOURS = ("atp", "wta")
+
+#: The ranking systems ``GET /rankings`` publishes as full tables. ``utr`` is
+#: deliberately absent: a rating is not a ranking and has no listing.
+RANKING_SYSTEMS = ("atp", "wta", "itf_jt", "itf_mt", "itf_wt")
 
 
 # -- client -------------------------------------------------------------------
@@ -92,40 +103,14 @@ def make_client(credentials: Mapping[str, Any] | None, *, base_url: str | None =
 def list_matches(client: LiveTennisAPI, *, status: str, tour: str | None, limit: int) -> Any:
     """``GET /matches`` with the documented ``status``, ``tour`` and ``limit``.
 
-    ``tour`` is a documented query parameter of the endpoint, but the pinned SDK
-    (``livetennisapi`` 1.0.2) predates it and ``list_matches`` has no such
-    keyword. The public call is attempted first, so the moment the SDK gains the
-    keyword this function starts using it and the fallback below goes cold. Only
-    when the SDK rejects the keyword do we build the same request through its
-    request layer, which is what its own ``list_matches`` does.
-
-    Dropping ``tour`` silently instead would be worse than either: the user asks
-    for ATP and quietly gets everything.
+    Until livetennisapi 1.3.0 the SDK's ``list_matches`` had no ``tour``
+    keyword and this function carried a request-layer shim for it. The
+    dependency floor is now 1.3.0, so the shim is gone -- this stays as the
+    one seam the tools call through, and ``tour`` is only sent when set.
     """
     if not tour:
         return client.list_matches(status=status, limit=limit)
-
-    try:
-        return client.list_matches(status=status, tour=tour, limit=limit)
-    except TypeError:
-        pass
-
-    from livetennisapi.models import Match
-
-    payload = client._request(  # noqa: SLF001 - documented SDK-version shim, see above
-        "/matches",
-        {"status": status, "tour": tour, "limit": limit},
-    )
-    return _Page([Match.from_dict(row) for row in (payload or {}).get("data") or []])
-
-
-class _Page:
-    """The one attribute the tools read off an SDK ``Page``: ``.data``."""
-
-    __slots__ = ("data",)
-
-    def __init__(self, data: list[Any]) -> None:
-        self.data = data
+    return client.list_matches(status=status, tour=tour, limit=limit)
 
 
 # -- formatters ---------------------------------------------------------------
@@ -277,11 +262,75 @@ def price_out(price: Any) -> dict[str, Any]:
     }
 
 
+def _participant_out(participant: Any) -> dict[str, Any]:
+    """One side of an archive result. ``player_id`` is the corpus person id
+    (joins ``get_archive_players`` rows within the same tour), never a roster id."""
+    return {
+        "name": _n(getattr(participant, "name", None)),
+        "country": _n(getattr(participant, "country", None)),
+        "rank": _n(getattr(participant, "rank", None)),
+        "seed": _n(getattr(participant, "seed", None)),
+        "player_id": _n(getattr(participant, "player_id", None)),
+    }
+
+
+def archive_match_out(row: Any) -> dict[str, Any]:
+    """One 1968-2022 archive result. Winner/loser-shaped, as recorded at source.
+
+    ``event_date`` is the TOURNAMENT START date -- per-match dates do not exist
+    in this era's records, and none are invented.
+    """
+    return {
+        "id": _n(getattr(row, "id", None)),
+        "tour": _n(getattr(row, "tour", None)),
+        "tournament": _n(getattr(row, "tournament", None)),
+        "level": _n(getattr(row, "level", None)),
+        "surface": _n(getattr(row, "surface", None)),
+        "event_date": _iso(getattr(row, "event_date", None)),
+        "round": _n(getattr(row, "round", None)),
+        "best_of": _n(getattr(row, "best_of", None)),
+        "winner": _participant_out(getattr(row, "winner", None)),
+        "loser": _participant_out(getattr(row, "loser", None)),
+        "score": _n(getattr(row, "score", None)),
+        "outcome": _n(getattr(row, "outcome", None)),
+    }
+
+
+def archive_player_out(bio: Any) -> dict[str, Any]:
+    """One archive player bio. ``None`` fields are the era's silence, not gaps."""
+    return {
+        "id": _n(getattr(bio, "id", None)),
+        "tour": _n(getattr(bio, "tour", None)),
+        "name": _n(getattr(bio, "name", None)),
+        "hand": _n(getattr(bio, "hand", None)),
+        "dob": _iso(getattr(bio, "dob", None)),
+        "country": _n(getattr(bio, "country", None)),
+        "height_cm": _n(getattr(bio, "height_cm", None)),
+        "career_high_rank": _n(getattr(bio, "career_high_rank", None)),
+        "career_high_date": _iso(getattr(bio, "career_high_date", None)),
+    }
+
+
+def ranking_out(record: Any) -> dict[str, Any]:
+    """One ranking-table row. ``player_id`` may be null for players outside the
+    roster -- the published table has no silent holes, so the name always rides."""
+    return {
+        "rank": _n(getattr(record, "rank", None)),
+        "player_id": _n(getattr(record, "player_id", None)),
+        "player_name": _n(getattr(record, "player_name", None)),
+        "system": _n(getattr(record, "system", None)),
+        "points": _n(getattr(record, "points", None)),
+        "previous_rank": _n(getattr(record, "previous_rank", None)),
+        "rank_movement": _n(getattr(record, "rank_movement", None)),
+        "effective_date": _iso(getattr(record, "effective_date", None)),
+    }
+
+
 # -- parameters ---------------------------------------------------------------
 #
 # Dify hands tool parameters through untyped: a "number" arrives as int, float
 # or str depending on whether a user typed it, a workflow computed it, or a
-# model filled it in. Coercing in one place stops six tools each inventing
+# model filled it in. Coercing in one place stops twelve tools each inventing
 # their own half-correct version.
 
 
@@ -408,7 +457,51 @@ def run_tool(
             "No data found for that request. The id may be wrong, or there may be no data yet.",
             "not_found",
         )
+    except BadRequest as exc:
+        # One 400 deserves better than the backstop: a name fragment matching
+        # more than one player. The API sends the candidates, and relaying
+        # them lets a model simply re-ask with the full name.
+        if exc.error_code == "ambiguous_name":
+            candidates = []
+            if isinstance(exc.body, Mapping):
+                candidates = [str(c) for c in exc.body.get("candidates") or []]
+            listed = f" Candidates: {'; '.join(candidates)}." if candidates else ""
+            return fail(
+                f"That player name matches more than one person - give a fuller name.{listed}",
+                "ambiguous_name",
+                candidates=candidates,
+            )
+        return fail(f"The Live Tennis API rejected the request: {exc}", "request_failed")
+    except AbuseThrottled as exc:
+        # Must precede RateLimited (its parent class). "Wait a minute" is
+        # exactly the wrong advice here: the key is blocked for 24 hours for
+        # repeatedly hammering through its quota, and the remedy is to fix
+        # the loop that did it, not to retry.
+        until = f" The block lifts at {exc.retry_at.isoformat()}." if exc.retry_at is not None else ""
+        return fail(
+            "This API key is temporarily blocked (about 24 hours) for repeatedly exceeding "
+            f"its quota.{until} Do not retry until then - fix the polling or retry loop "
+            "that exhausted the quota, or upgrade the plan at " + PRICING_URL,
+            "abuse_throttled",
+            retry_at_epoch=exc.retry_at_epoch,
+        )
     except RateLimited as exc:
+        if exc.scope == "day":
+            # The daily cap, not the minute window. `resets_at` is an absolute
+            # instant derived from a local midnight -- never "midnight UTC" --
+            # so the ISO timestamp is relayed as-is rather than paraphrased.
+            resets = _iso(exc.resets_at)
+            when = f" It resets at {resets}." if resets else ""
+            quota = f" ({exc.limit_per_day}/day)" if exc.limit_per_day is not None else ""
+            return fail(
+                f"The daily request quota for this plan{quota} is used up.{when} "
+                f"A higher plan raises the daily allowance: {PRICING_URL}",
+                "rate_limited",
+                scope="day",
+                limit_per_day=exc.limit_per_day,
+                resets_at=resets,
+                retry_after=exc.retry_after,
+            )
         wait = f" Retry in about {exc.retry_after:g}s." if exc.retry_after is not None else ""
         return fail(f"Rate limit reached for this plan.{wait}", "rate_limited", retry_after=exc.retry_after)
     except APIConnectionError as exc:

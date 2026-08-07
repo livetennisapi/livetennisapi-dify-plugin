@@ -32,8 +32,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "plugin"))
 sys.path.insert(0, str(ROOT / "test"))
 
-import livetennisapi_client  # noqa: E402
 from dify_plugin.entities.tool import ToolRuntime  # noqa: E402
+
+import livetennisapi_client  # noqa: E402
 from stub_api import StubAPI  # noqa: E402
 
 API_KEY = "twjp_test_key"

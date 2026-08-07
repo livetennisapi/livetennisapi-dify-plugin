@@ -5,8 +5,8 @@ identity:
     en_US: "Tennis matches"
 description:
   human:
-    en_US: "List tennis matches - live now, scheduled to start, or already finished. Optionally narrowed to one tour. Covers ATP, WTA, Challenger and ITF."
-  llm: "List tennis matches by lifecycle status. status=live for matches in progress right now with live scores (the default, and the answer to \"what tennis is on\"), status=upcoming for matches about to start, status=completed for finished matches with the winner. Set tour to narrow to ATP, WTA, Challenger or ITF. Returns match ids for use with get_match and get_match_score."
+    en_US: "List tennis matches - live now, scheduled to start, or already finished. Optionally narrowed to one tour. Covers ATP, WTA, Challenger, ITF and juniors."
+  llm: "List tennis matches by lifecycle status. status=live for matches in progress right now with live scores (the default, and the answer to \"what tennis is on\"), status=upcoming for matches about to start, status=completed for finished matches with the winner (completed results need the BASIC plan or higher; live and upcoming are on the free plan). Set tour to narrow to ATP, WTA, Challenger, ITF or juniors. Returns match ids for use with get_match, get_match_score and get_match_statistics."
 output_schema:
   type: object
   properties:
@@ -27,7 +27,7 @@ output_schema:
     tour:
       type: string
       nullable: true
-      description: The tour actually filtered on - atp, wta, challenger or itf - or null for all tours.
+      description: The tour actually filtered on - atp, wta, challenger, itf or juniors - or null for all tours.
     matches:
       type: array
       description: The matches, most relevant first.
@@ -101,7 +101,7 @@ parameters:
       en_US: Status
     human_description:
       en_US: Which matches to list - live now, scheduled to start, or already finished. Defaults to live.
-    llm_description: Which matches to list. "live" for matches in progress right now, "upcoming" for matches yet to start, "completed" for finished matches with a winner. Defaults to "live". Any other value is treated as "live".
+    llm_description: Which matches to list. "live" for matches in progress right now, "upcoming" for matches yet to start, "completed" for finished matches with a winner (needs the BASIC plan or higher). Defaults to "live". Any other value is treated as "live".
     form: llm
   - name: tour
     type: select
@@ -119,11 +119,14 @@ parameters:
       - value: itf
         label:
           en_US: ITF
+      - value: juniors
+        label:
+          en_US: Juniors
     label:
       en_US: Tour
     human_description:
       en_US: Narrow the list to one tour. Leave unset for all tours.
-    llm_description: Narrow the list to one tour - "atp", "wta", "challenger" or "itf". Leave unset to include every tour. Any other value is ignored and all tours are returned.
+    llm_description: Narrow the list to one tour - "atp", "wta", "challenger", "itf" or "juniors". Leave unset to include every tour. Any other value is ignored and all tours are returned.
     form: llm
   - name: limit
     type: number
